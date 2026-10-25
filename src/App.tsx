@@ -13,6 +13,7 @@ import {
 import { api, type Category, type Product } from "./lib/api";
 import ProductDetail from "./components/ProductDetail";
 import ProductCard from "./components/ProductCard";
+import BrandMark from "./components/BrandMark";
 const Admin = lazy(() => import("./components/Admin"));
 export default function App() {
   const [route, setRoute] = useState(location.hash.slice(1) || "/");
@@ -99,10 +100,11 @@ export default function App() {
         <span>A considered approach to furniture.</span>
       </div>
       <header className="site-header">
-        <a className="brand" href="#/" aria-label="Happy Fatun home">
-          <Armchair size={30} />
+        <a className="brand" href="#/" aria-label="Aaranya Living home">
+          <BrandMark />
           <span>
-            happy fatun<span className="brand-sub">FURNITURE & LIVING</span>
+            Aaranya Living
+            <span className="brand-sub">WHERE NATURE MEETS CRAFTSMANSHIP.</span>
           </span>
         </a>
         <nav aria-label="Main navigation" className={menu ? "nav open" : "nav"}>
@@ -132,7 +134,7 @@ export default function App() {
           </Suspense>
         ) : route === "/about" ? (
           <section className="container prose">
-            <p className="eyebrow">THE HAPPY FATUN APPROACH</p>
+            <p className="eyebrow">THE AARANYA LIVING APPROACH</p>
             <h1>
               Good furniture begins
               <br />
@@ -383,10 +385,10 @@ export default function App() {
       </main>
       <footer>
         <a href="#/" className="brand">
-          <Armchair size={26} />
-          <span>happy fatun</span>
+          <BrandMark />
+          <span>Aaranya Living</span>
         </a>
-        <p>Thoughtful furniture. Personal possibilities.</p>
+        <p>Where Nature Meets Craftsmanship.</p>
         <div>
           <a href="#/about">How it works</a>
           <a href="#/admin">Owner studio</a>

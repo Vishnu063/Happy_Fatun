@@ -1509,3 +1509,77 @@ th {
   border: 1px solid #bdc3b3;
   font-size: 20px;
 }
+.brand-sub {
+  font-size: 6.5px;
+  letter-spacing: 0.13em;
+  max-width: 240px;
+  line-height: 1.5;
+}
+.image-fallback {
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  background: #ebe8de;
+  color: #525d4a;
+  padding: 20px;
+  height: 100%;
+  width: 100%;
+}
+.image-fallback small {
+  font-size: 11px;
+}
+.image-manager {
+  border: 1px solid var(--line);
+  padding: 20px;
+  margin: 20px 0;
+}
+.image-manager-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 15px;
+  margin-bottom: 20px;
+}
+.managed-image > img {
+  width: 100%;
+  height: 140px;
+  object-fit: contain;
+  background: #f5f2eb;
+}
+.managed-image p {
+  font-size: 11px;
+  margin: 8px 0;
+  overflow-wrap: anywhere;
+}
+.managed-image small {
+  font-size: 9px;
+}
+.managed-image .actions {
+  gap: 5px;
+  margin-top: 8px;
+}
+@media (max-width: 650px) {
+  .brand-sub {
+    font-size: 6px;
+    letter-spacing: 0.07em;
+  }
+  .brand {
+    font-size: 23px;
+    gap: 8px;
+  }
+  .image-manager {
+    padding: 14px;
+  }
+  .image-manager-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .image-manager .two-fields {
+    grid-template-columns: 1fr;
+  }
+  .managed-image > img {
+    height: 100px;
+  }
+}

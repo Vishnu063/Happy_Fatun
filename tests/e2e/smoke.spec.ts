@@ -94,7 +94,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     page.getByRole("heading", { name: "A beautiful beginning." }),
   ).toBeVisible();
   const reference = await page.locator(".reference strong").innerText();
-  expect(reference).toMatch(/^HF-/);
+  expect(reference).toMatch(/^AL-/);
   const anonymous = await page.request.put("/api/admin/products/sofas-1", {
     headers: { Origin: "http://127.0.0.1:8790" },
     data: { price: 1 },
@@ -214,6 +214,63 @@ test("owner creates, renames and deletes categories and designs", async ({
   await expect(
     page.getByRole("button", { name: `Edit Test desk ${suffix}`, exact: true }),
   ).toBeVisible();
+  await page
+    .getByRole("button", { name: `Edit Test desk ${suffix}`, exact: true })
+    .click();
+  const encoded = await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = "#ab8965";
+    ctx.fillRect(0, 0, 64, 64);
+    return c.toDataURL("image/png").split(",")[1];
+  });
+  const fixture = {
+    name: "studio.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(encoded, "base64"),
+  };
+  await page.getByLabel("Image file", { exact: true }).setInputFiles(fixture);
+  await page
+    .getByLabel("Image description (alt text)", { exact: true })
+    .fill("Studio test design on white background");
+  await page.getByRole("button", { name: "Upload image", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Image optimized and saved. Product and inquiry records preserved.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".managed-image")).toHaveCount(2);
+  await page
+    .getByRole("combobox", { name: "Upload destination", exact: true })
+    .selectOption("0");
+  await page.getByLabel("Image file", { exact: true }).setInputFiles(fixture);
+  await page
+    .getByLabel("Image description (alt text)", { exact: true })
+    .fill("Matching test design in a room");
+  await page
+    .getByRole("button", { name: "Replace image", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Image optimized and saved. Product and inquiry records preserved.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Move image 2 earlier", exact: true })
+    .click();
+  await expect(
+    page.getByText("Gallery order saved.", { exact: true }),
+  ).toBeVisible();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "Delete image 2", exact: true })
+    .click();
+  await expect(page.locator(".managed-image")).toHaveCount(1);
+  await page.getByRole("button", { name: "Save design", exact: true }).click();
   const catalog = await page.context().newPage();
   await catalog.goto("/");
   await catalog

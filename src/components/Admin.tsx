@@ -10,6 +10,7 @@ import {
   Pencil,
 } from "lucide-react";
 import { api, send, money, type Product, type Category } from "../lib/api";
+import ImageManager from "./ImageManager";
 type Quote = {
   id: string;
   reference: string;
@@ -143,7 +144,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
     return (
       <section className="login">
         <ShieldCheck size={34} />
-        <p className="eyebrow">PRIVATE OWNER STUDIO</p>
+        <p className="eyebrow">AARANYA LIVING · PRIVATE OWNER STUDIO</p>
         <h1>
           Your collection.
           <br />
@@ -201,7 +202,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
     <section className="container admin">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">PRIVATE OWNER STUDIO</p>
+          <p className="eyebrow">AARANYA LIVING · PRIVATE OWNER STUDIO</p>
           <h1>Room to create.</h1>
         </div>
         <button
@@ -620,6 +621,7 @@ function ProductEditor({
   save: (p: unknown) => Promise<void>;
 }) {
   const [p, setP] = useState(product);
+  const [imageBusy, setImageBusy] = useState(false);
   const [images, setImages] = useState(p.images.join("\n"));
   const [colors, setColors] = useState(p.colors.join(", "));
   const [materials, setMaterials] = useState(p.materials.join(", "));
@@ -788,21 +790,21 @@ function ProductEditor({
           />
         </label>
       </div>
-      <label>
-        Gallery assets (one HTTPS URL or /assets/ path per line)
-        <textarea
-          required
-          rows={4}
-          value={images}
-          onChange={(e) => setImages(e.target.value)}
+      {p.id ? (
+        <ImageManager
+          id={p.id}
+          onBusy={setImageBusy}
+          onChange={(urls) => {
+            setImages(urls.join("\n"));
+            setP((current) => ({ ...current, images: urls }));
+          }}
         />
-      </label>
-      <p className="muted small">
-        Use only permitted, manufacturer-approved photos: white background
-        first, room scene second, then angles. For bundled images, add files to
-        public/assets and redeploy. This dashboard manages asset links; it does
-        not store uploads.
-      </p>
+      ) : (
+        <p className="notice">
+          Save the design first, then upload and arrange its gallery. A labeled
+          placeholder is used initially.
+        </p>
+      )}
       <label>
         Optional 3D concept geometry
         <select
@@ -815,7 +817,7 @@ function ProductEditor({
           <option value="desks">Generic desk demo</option>
         </select>
       </label>
-      <button className="btn" disabled={busy}>
+      <button className="btn" disabled={busy || imageBusy}>
         <Save size={17} />
         {busy ? "Saving…" : "Save design"}
       </button>

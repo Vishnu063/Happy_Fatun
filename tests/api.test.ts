@@ -359,3 +359,157 @@ describe("production session cookie policy", () => {
     );
   });
 });
+
+class ImageBucket {
+  objects = new Map<string, Uint8Array>();
+  async put(key: string, value: Uint8Array) {
+    this.objects.set(key, new Uint8Array(value));
+    return { key };
+  }
+  async delete(key: string | string[]) {
+    for (const k of Array.isArray(key) ? key : [key]) this.objects.delete(k);
+  }
+  async get(key: string) {
+    const value = this.objects.get(key);
+    return value
+      ? {
+          body: new Blob([value as Uint8Array<ArrayBuffer>]).stream(),
+          httpEtag: '"test-image"',
+        }
+      : null;
+  }
+}
+const png = Uint8Array.from(
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6S0AAAAASUVORK5CYII=",
+    "base64",
+  ),
+);
+async function uploadImage(
+  body: Uint8Array = png,
+  extra: Record<string, string> = {},
+  query = "",
+) {
+  return app.request(
+    `${origin}/api/admin/products/sofas-1/images${query}`,
+    {
+      method: "POST",
+      headers: {
+        Origin: origin,
+        Cookie: cookie,
+        "Content-Type": "image/png",
+        "X-Image-Alt": encodeURIComponent("Aara sofa white studio concept"),
+        "X-Image-Kind": "illustrative",
+        ...extra,
+      },
+      body: new Blob([body as Uint8Array<ArrayBuffer>]),
+    },
+    env,
+  );
+}
+describe("owner image storage and replacement", () => {
+  it("rejects anonymous uploads and validates file type, size, alt and dimensions", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    expect((await uploadImage()).status).toBe(401);
+    await login();
+    expect(
+      (
+        await uploadImage(
+          new TextEncoder().encode("<svg><script>alert(1)</script></svg>"),
+          { "Content-Type": "image/svg+xml" },
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await uploadImage(png, { "Content-Type": "image/jpeg" })).status,
+    ).toBe(400);
+    expect((await uploadImage(png, { "X-Image-Alt": "" })).status).toBe(400);
+    expect(
+      (await uploadImage(new Uint8Array(5 * 1024 * 1024 + 1))).status,
+    ).toBe(413);
+    const huge = new Uint8Array(png);
+    new DataView(huge.buffer).setUint32(16, 10000);
+    expect((await uploadImage(huge)).status).toBe(400);
+    expect(bucket.objects.size).toBe(0);
+  });
+  it("uploads, serves, reorders, replaces and deletes while preserving product and quote records", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    await request("/quotes", "POST", quote());
+    await login();
+    const original = db.db
+      .prepare("SELECT * FROM products WHERE id=?")
+      .get("sofas-1")!;
+    const uploaded = await uploadImage();
+    expect(uploaded.status).toBe(201);
+    const { url } = await uploaded.json<any>();
+    expect(bucket.objects.size).toBe(1);
+    const publicImage = await app.request(`${origin}${url}`, {}, env);
+    expect(publicImage.status).toBe(200);
+    expect(publicImage.headers.get("Content-Type")).toBe("image/png");
+    expect(new Uint8Array(await publicImage.arrayBuffer())).toEqual(png);
+    let gallery = await (
+      await request("/admin/products/sofas-1/images", "GET", undefined, true)
+    ).json<any>();
+    expect(gallery.images).toHaveLength(4);
+    expect(gallery.images[3].alt).toBe("Aara sofa white studio concept");
+    const order = gallery.images.map((m: { url: string }) => m.url).reverse();
+    expect(
+      (
+        await request(
+          "/admin/products/sofas-1/images/order",
+          "PUT",
+          { images: order },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          "/admin/products/sofas-1/images/order",
+          "PUT",
+          { images: ["/media/unapproved"] },
+          true,
+        )
+      ).status,
+    ).toBe(400);
+    const replacement = await uploadImage(png, {}, "?replace=0");
+    expect(replacement.status).toBe(201);
+    expect(bucket.objects.size).toBe(1);
+    expect((await app.request(`${origin}${url}`, {}, env)).status).toBe(404);
+    expect(
+      (
+        await request(
+          "/admin/products/sofas-1/images/0",
+          "DELETE",
+          undefined,
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    expect(bucket.objects.size).toBe(0);
+    const after = db.db
+      .prepare("SELECT * FROM products WHERE id=?")
+      .get("sofas-1")!;
+    for (const k of ["id", "price", "description", "name", "internal_cost"])
+      expect(after[k]).toBe(original[k]);
+    const stored = db.db.prepare("SELECT * FROM quotes").get()!;
+    expect(stored.configuration).toBe(JSON.stringify(quote().configuration));
+    expect(JSON.parse(String(stored.product_snapshot)).images).toEqual(
+      JSON.parse(String(original.images)),
+    );
+  });
+  it("fails clearly without a bucket and removes staged objects if database persistence fails", async () => {
+    await login();
+    expect((await uploadImage()).status).toBe(503);
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    vi.spyOn(db, "batch").mockRejectedValueOnce(
+      new Error("simulated DB failure"),
+    );
+    expect((await uploadImage()).status).toBe(500);
+    expect(bucket.objects.size).toBe(0);
+  });
+});

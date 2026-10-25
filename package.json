@@ -15,6 +15,7 @@
     "owner:hash": "node scripts/owner-hash.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "brief": "node scripts/github-brief.mjs",
     "deploy:check": "node scripts/deploy.mjs --check"
   },
   "dependencies": {

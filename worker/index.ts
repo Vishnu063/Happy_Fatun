@@ -11,6 +11,7 @@ import {
   SESSION_MS,
 } from "./auth";
 export { passwordHash } from "./crypto";
+import { registerMedia, isImageUpload, MAX_IMAGE_BYTES } from "./media";
 export type Env = {
   DB: D1Database;
   ASSETS?: Fetcher;
@@ -23,6 +24,7 @@ export type Env = {
   RESEND_API_KEY?: string;
   BUSINESS_EMAIL?: string;
   BUSINESS_PHONE?: string;
+  PRODUCT_IMAGES?: R2Bucket;
 };
 const app = new Hono<{ Bindings: Env; Variables: { session: string } }>();
 async function limited(
@@ -66,17 +68,21 @@ app.use("/api/*", async (c, next) => {
       )
     )
       return c.json({ error: "Request origin is not allowed." }, 403);
-    if (Number(c.req.header("Content-Length") || 0) > 32768)
+    if (
+      Number(c.req.header("Content-Length") || 0) >
+      (isImageUpload(c.req.path, c.req.method) ? MAX_IMAGE_BYTES : 32768)
+    )
       return c.json({ error: "Request is too large." }, 413);
   }
   await next();
 });
-app.use(
-  "/api/*",
-  bodyLimit({
-    maxSize: 32768,
-    onError: (c) => c.json({ error: "Request is too large." }, 413),
-  }),
+app.use("/api/*", (c, next) =>
+  isImageUpload(c.req.path, c.req.method)
+    ? next()
+    : bodyLimit({
+        maxSize: 32768,
+        onError: (c) => c.json({ error: "Request is too large." }, 413),
+      })(c, next),
 );
 app.use("/api/admin/*", async (c, next) => {
   if (!(await authenticated(c.req.raw, c.env)))
@@ -121,14 +127,22 @@ const statuses = [
   "Closed",
 ] as const;
 app.get("/api/catalog", async (c) => {
-  const [products, categories] = await Promise.all([
+  const [products, categories, media] = await Promise.all([
     c.env.DB.prepare(
       `SELECT ${publicColumns} FROM products WHERE status != 'archived' ORDER BY name`,
     ).all(),
     c.env.DB.prepare("SELECT id,name FROM categories ORDER BY name").all(),
+    c.env.DB.prepare("SELECT id,product_id,alt,kind FROM media_objects").all(),
   ]);
   return c.json({
-    products: products.results.map(decode),
+    products: products.results.map((row) => ({
+      ...decode(row),
+      image_metadata: Object.fromEntries(
+        media.results
+          .filter((m) => m.product_id === row.id)
+          .map((m) => [`/media/${m.id}`, { alt: m.alt, kind: m.kind }]),
+      ),
+    })),
     categories: categories.results,
   });
 });
@@ -229,7 +243,7 @@ export async function notify(env: Env, id: string) {
           body: JSON.stringify({
             from: env.EMAIL_FROM,
             to: [env.OWNER_EMAIL],
-            subject: `New furniture inquiry ${claim.reference}`,
+            subject: `Aaranya Living inquiry ${claim.reference}`,
             text: `A new quote request ${claim.reference} is ready for review in your private owner dashboard. Sign in to view the customer details.`,
           }),
           signal: AbortSignal.timeout(10000),
@@ -280,7 +294,7 @@ app.post("/api/quotes", async (c) => {
   )
     return c.json({ error: "Choose a listed material and color." }, 400);
   const id = crypto.randomUUID();
-  const reference = `HF-${id.toUpperCase()}`;
+  const reference = `AL-${id.toUpperCase()}`;
   await c.env.DB.prepare(
     "INSERT INTO quotes (id,reference,product_id,product_snapshot,configuration,name,email,phone,area,consent) VALUES (?,?,?,?,?,?,?,?,?,1)",
   )
@@ -318,7 +332,7 @@ const asset = z
   .max(500)
   .refine(
     (v) =>
-      /^\/assets\/[a-zA-Z0-9_./-]+$/.test(v) ||
+      /^\/(?:assets|media)\/[a-zA-Z0-9_./-]+$/.test(v) ||
       (() => {
         try {
           return new URL(v).protocol === "https:";
@@ -448,9 +462,23 @@ app.put("/api/admin/products/:id", async (c) => {
   return c.json({ ok: true });
 });
 app.delete("/api/admin/products/:id", async (c) => {
+  const objects = await c.env.DB.prepare(
+    "SELECT storage_key FROM media_objects WHERE product_id=?",
+  )
+    .bind(c.req.param("id"))
+    .all<{ storage_key: string }>();
   await c.env.DB.prepare("DELETE FROM products WHERE id=?")
     .bind(c.req.param("id"))
     .run();
+  if (objects.results.length) {
+    try {
+      await c.env.PRODUCT_IMAGES?.delete(
+        objects.results.map((row) => row.storage_key),
+      );
+    } catch {
+      console.error("Product image cleanup needs retry.");
+    }
+  }
   return c.json({ ok: true });
 });
 app.post("/api/admin/categories", async (c) => {
@@ -561,6 +589,7 @@ app.post("/api/admin/quotes/:id/retry", async (c) => {
   await notify(c.env, c.req.param("id"));
   return c.json({ ok: true });
 });
+registerMedia(app);
 app.get("/api/health", (c) => c.json({ ok: true }));
 app.all("/api/*", (c) => c.json({ error: "Endpoint not found." }, 404));
 export default app;

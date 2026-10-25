@@ -11,6 +11,10 @@ export interface Product {
   price: number | null;
   status: string;
   images: string[];
+  image_metadata?: Record<
+    string,
+    { alt: string; kind: "illustrative" | "photo" }
+  >;
   colors: string[];
   materials: string[];
   model: "sofas" | "dining" | "desks" | null;

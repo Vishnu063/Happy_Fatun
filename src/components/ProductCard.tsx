@@ -1,3 +1,4 @@
+import FurnitureImage from "./FurnitureImage";
 import { MoveUpRight } from "lucide-react";
 import { money, type Product } from "../lib/api";
 export default function ProductCard({ product: p }: { product: Product }) {
@@ -5,13 +6,20 @@ export default function ProductCard({ product: p }: { product: Product }) {
     <article className="product-card">
       <a href={`#/product/${p.id}`}>
         <div className="card-image">
-          <img
+          <FurnitureImage
             src={p.images[0]}
-            alt={`${p.name} — illustrative design concept`}
+            alt={
+              p.image_metadata?.[p.images[0]]?.alt ||
+              `${p.name} — furniture design`
+            }
             loading="lazy"
           />
           <span className="pill">
-            {p.status === "concept" ? "DEMO CONCEPT" : "OWNER APPROVED"}
+            {p.status === "concept" ||
+            p.images[0].startsWith("/assets/") ||
+            p.image_metadata?.[p.images[0]]?.kind === "illustrative"
+              ? "DESIGN CONCEPT"
+              : "OWNER APPROVED"}
           </span>
           <span className="card-arrow">
             <MoveUpRight size={21} />

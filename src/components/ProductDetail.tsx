@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState, useEffect } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { api, send, money, type Product } from "../lib/api";
 import ProductCard from "./ProductCard";
+import FurnitureImage from "./FurnitureImage";
+import type { GalleryImage } from "./ImageManager";
 const Viewer = lazy(() => import("./Viewer"));
 export default function ProductDetail({
   product: p,
@@ -18,6 +20,12 @@ export default function ProductDetail({
   product: Product;
   related: Product[];
 }) {
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  useEffect(() => {
+    api<{ images: GalleryImage[] }>(`/products/${p.id}/images`)
+      .then((result) => setGallery(result.images))
+      .catch(() => setGallery([]));
+  }, [p.id, p.images.join("|")]);
   const [image, setImage] = useState(0);
   const [three, setThree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -35,6 +43,10 @@ export default function ProductDetail({
     color: p.colors[0],
     notes: "",
   });
+  const illustrative =
+    p.status === "concept" ||
+    gallery[image]?.kind === "illustrative" ||
+    p.images[image]?.startsWith("/assets/");
   const move = (d: number) =>
     setImage((i) => (i + d + p.images.length) % p.images.length);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -71,7 +83,7 @@ export default function ProductDetail({
         <div className="success-icon">
           <Check size={32} />
         </div>
-        <p className="eyebrow">REQUEST RECEIVED</p>
+        <p className="eyebrow">AARANYA LIVING · REQUEST RECEIVED</p>
         <h1>A beautiful beginning.</h1>
         <p>
           Your request has been saved. The owner will review your design and
@@ -143,9 +155,12 @@ export default function ProductDetail({
                 <Viewer model={p.model} color={config.color} />
               </Suspense>
             ) : (
-              <img
+              <FurnitureImage
                 src={p.images[image]}
-                alt={`${p.name} — ${["clean background illustration", "room illustration", "alternate angle illustration"][image] || `view ${image + 1}`}`}
+                alt={
+                  gallery[image]?.alt ||
+                  `${p.name} — ${["clean background illustration", "room illustration", "alternate angle illustration"][image] || `view ${image + 1}`}`
+                }
               />
             )}
             {!three && (
@@ -195,13 +210,11 @@ export default function ProductDetail({
             )}
           </div>
           <p className="disclosure">
-            {p.status === "concept"
-              ? "Design concept / illustrative rendering. "
-              : ""}
+            {illustrative ? "Design concept / illustrative image. " : ""}
             {three
               ? "Interactive generic demo geometry; not an accurate model of this product."
-              : p.status === "concept"
-                ? "Original illustrations, not manufactured inventory."
+              : illustrative
+                ? "Illustrative design image, not manufactured stock."
                 : "Owner-supplied gallery. Confirm specifications during review."}
           </p>
           {!p.model && (

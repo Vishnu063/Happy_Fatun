@@ -1,10 +1,11 @@
+import { productURL } from "../../shared/seo";
 import FurnitureImage from "./FurnitureImage";
 import { MoveUpRight } from "lucide-react";
 import { money, type Product } from "../lib/api";
 export default function ProductCard({ product: p }: { product: Product }) {
   return (
     <article className="product-card">
-      <a href={`#/product/${p.id}`}>
+      <a href={productURL(p)}>
         <div className="card-image">
           <FurnitureImage
             src={p.images[0]}

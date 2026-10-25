@@ -627,3 +627,34 @@ describe("lead follow-ups and configurable contact", () => {
     ).toBe(400);
   });
 });
+
+describe("gallery concurrency protection", () => {
+  it("keeps an uploaded gallery when an older product editor saves a price", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    await login();
+    const data = await (
+      await request("/admin/data", "GET", undefined, true)
+    ).json<any>();
+    const { id, ...stale } = data.products.find(
+      (p: { id: string }) => p.id === "sofas-1",
+    );
+    const uploaded = await (await uploadImage()).json<any>();
+    expect(uploaded.url).toBeTruthy();
+    expect(
+      (
+        await request(
+          `/admin/products/${id}`,
+          "PUT",
+          { ...stale, price: 500000 },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    const saved = db.db
+      .prepare("SELECT images,price FROM products WHERE id=?")
+      .get(id)!;
+    expect(JSON.parse(String(saved.images))).toContain(uploaded.url);
+    expect(saved.price).toBe(500000);
+  });
+});

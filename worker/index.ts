@@ -1,3 +1,4 @@
+import { registerSEO } from "./seo";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
@@ -55,6 +56,7 @@ async function limited(
 }
 app.use("/api/*", async (c, next) => {
   c.header("Cache-Control", "no-store");
+  c.header("X-Robots-Tag", "noindex, nofollow");
   if (c.env.ENVIRONMENT === "development" && !developmentHost(c.req.url))
     return c.json(
       { error: "Development configuration is forbidden on a public host." },
@@ -448,7 +450,7 @@ app.put("/api/admin/products/:id", async (c) => {
       "INSERT INTO price_audit (id,product_id,old_price,new_price) SELECT ?,id,price,? FROM products WHERE id=? AND price IS NOT ?",
     ).bind(crypto.randomUUID(), input.price, id, input.price),
     c.env.DB.prepare(
-      "UPDATE products SET name=?,category_id=?,description=?,material=?,finish=?,length=?,width=?,height=?,price=?,status=?,images=?,colors=?,materials=?,model=?,internal_cost=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+      "UPDATE products SET name=?,category_id=?,description=?,material=?,finish=?,length=?,width=?,height=?,price=?,status=?,colors=?,materials=?,model=?,internal_cost=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
     ).bind(
       input.name,
       input.category_id,
@@ -460,7 +462,6 @@ app.put("/api/admin/products/:id", async (c) => {
       input.height,
       input.price,
       input.status,
-      JSON.stringify(input.images),
       JSON.stringify(input.colors),
       JSON.stringify(input.materials),
       input.model,
@@ -602,4 +603,5 @@ registerMedia(app);
 registerLeads(app);
 app.get("/api/health", (c) => c.json({ ok: true }));
 app.all("/api/*", (c) => c.json({ error: "Endpoint not found." }, 404));
+registerSEO(app);
 export default app;

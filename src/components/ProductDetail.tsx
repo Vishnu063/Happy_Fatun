@@ -115,14 +115,14 @@ export default function ProductDetail({
           This is an inquiry, not a confirmed order. Delivery, installation and
           lead times will be discussed during review.
         </p>
-        <a className="btn" href="#/">
+        <a className="btn" href="/">
           Back to the collection <ArrowRight size={18} />
         </a>
       </section>
     );
   return (
     <div className="container detail">
-      <a className="back" href="#/">
+      <a className="back" href="/">
         <ArrowLeft size={16} /> Back to the collection
       </a>
       <div className="detail-grid">

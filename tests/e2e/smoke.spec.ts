@@ -13,7 +13,14 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
       name: "Furniture with soul. Made for your life.",
     }),
   ).toBeVisible();
-  await expect(page.locator(".product-card")).toHaveCount(24);
+  await expect(page.locator("#collection .product-card")).toHaveCount(24);
+  await expect(
+    page.getByRole("link", { name: "Aaranya Living home", exact: true }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: `test-results/${isMobile ? "mobile" : "desktop"}-home.png`,
+    fullPage: true,
+  });
   const accessibility = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
     .analyze();
@@ -24,17 +31,26 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     ),
   ).toBe(true);
   await page.getByRole("button", { name: "Sofas", exact: true }).click();
-  await expect(page.locator(".product-card")).toHaveCount(4);
+  await expect(page.locator("#collection .product-card")).toHaveCount(4);
   await page.getByRole("searchbox", { name: "Search furniture" }).fill("Aara");
-  await expect(page.locator(".product-card")).toHaveCount(1);
+  await expect(page.locator("#collection .product-card")).toHaveCount(1);
   await page
     .getByRole("combobox", { name: "Material filter" })
     .selectOption("Walnut");
-  await expect(page.locator(".product-card")).toHaveCount(1);
-  await page.locator(".product-card a").click();
+  await expect(page.locator("#collection .product-card")).toHaveCount(1);
+  await page.locator("#collection .product-card a").click();
   await expect(
     page.getByRole("heading", { name: "Aara lounge sofa", exact: true }),
   ).toBeVisible();
+  await expect(page).toHaveURL(/\/design\/aara-lounge-sofa\/sofas-1$/);
+  await expect(page).toHaveTitle(
+    "Aara lounge sofa | Furniture design | Aaranya Living",
+  );
+  const serverDocument = await page.request.get(
+    "/design/aara-lounge-sofa/sofas-1",
+  );
+  expect(serverDocument.status()).toBe(200);
+  expect(await serverDocument.text()).toContain("<h1>Aara lounge sofa</h1>");
   await page.getByRole("button", { name: "Next image", exact: true }).click();
   await expect(page.locator(".gallery-count")).toHaveText("2 / 3");
   await page.locator(".gallery").focus();
@@ -140,7 +156,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     .getByRole("combobox", { name: "Lead stage", exact: true })
     .selectOption("Quote Sent");
   await lead
-    .getByLabel("Private follow-up notes", { exact: true })
+    .getByRole("textbox", { name: "Private follow-up notes", exact: true })
     .fill("Discuss preferred wood finish.");
   await lead.getByLabel("Follow-up date", { exact: true }).fill("2030-02-20");
   await lead
@@ -155,7 +171,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await expect(page.locator(".lead")).toHaveCount(1);
   await page.locator(".lead summary").click();
   await expect(
-    page.getByLabel("Private follow-up notes", { exact: true }),
+    page.getByRole("textbox", { name: "Private follow-up notes", exact: true }),
   ).toHaveValue("Discuss preferred wood finish.");
   await expect(page.getByLabel("Follow-up date", { exact: true })).toHaveValue(
     "2030-02-20",
@@ -177,7 +193,30 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await expect(
     page.getByRole("cell", { name: "₹25,000", exact: true }).first(),
   ).toBeVisible();
+  await page.getByRole("button", { name: "settings", exact: true }).click();
+  await page.getByLabel("Public phone", { exact: true }).fill("+91 9000000001");
+  await page
+    .getByLabel("Public email", { exact: true })
+    .fill("studio@example.test");
+  await page
+    .getByLabel("WhatsApp Business number (country code)", { exact: true })
+    .fill("+919000000001");
+  await page
+    .getByRole("button", { name: "Save public contact details", exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole("status")
+      .filter({ hasText: "Public contact details saved." }),
+  ).toBeVisible();
+  const copiedCookie = (
+    await page.context().cookies("http://127.0.0.1:8790/api/")
+  ).find((c) => c.name === "hf_session")!;
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  const revoked = await page.request.get("/api/admin/data", {
+    headers: { Cookie: `hf_session=${copiedCookie.value}` },
+  });
+  expect(revoked.status()).toBe(401);
   await expect(page.getByLabel("Owner password")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await page.goto("/#/product/sofas-1");
@@ -189,6 +228,17 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+  await page.goto("/contact");
+  await expect(
+    page.getByRole("heading", { name: "Your space. A personal conversation." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "studio@example.test", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Chat on WhatsApp", exact: true }),
+  ).toHaveAttribute("href", /^https:\/\/wa.me\/919000000001\?text=/);
+  await page.goto("/design/aara-lounge-sofa/sofas-1");
   expect(errors).toEqual([]);
   await page.screenshot({
     path: `test-results/${isMobile ? "mobile" : "desktop"}-product.png`,
@@ -304,18 +354,18 @@ test("owner creates, renames and deletes categories and designs", async ({
   await catalog
     .getByRole("combobox", { name: "Sort designs" })
     .selectOption("low");
-  await expect(catalog.locator(".product-card").first()).toContainText(
-    `Test desk ${suffix}`,
-  );
+  await expect(
+    catalog.locator("#collection .product-card").first(),
+  ).toContainText(`Test desk ${suffix}`);
   await catalog
     .getByRole("combobox", { name: "Sort designs" })
     .selectOption("high");
-  await expect(catalog.locator(".product-card").first()).toContainText(
-    "Aara lounge sofa",
-  );
+  await expect(
+    catalog.locator("#collection .product-card").first(),
+  ).toContainText("Aara lounge sofa");
   await catalog.getByLabel("Maximum starting price in rupees").fill("20000");
-  await expect(catalog.locator(".product-card")).toHaveCount(1);
-  await expect(catalog.locator(".product-card")).toContainText(
+  await expect(catalog.locator("#collection .product-card")).toHaveCount(1);
+  await expect(catalog.locator("#collection .product-card")).toContainText(
     `Test desk ${suffix}`,
   );
   await catalog.close();

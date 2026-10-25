@@ -14,11 +14,13 @@ import { api, type Category, type Product } from "./lib/api";
 import ProductDetail from "./components/ProductDetail";
 import ProductCard from "./components/ProductCard";
 import BrandMark from "./components/BrandMark";
+import { currentPath, navigate, interceptNavigation } from "./lib/navigation";
+import { pageMetadata, productURL, categoryURL } from "../shared/seo";
 import Contact from "./components/Contact";
 import { captureSource, type Business } from "./lib/contact";
 const Admin = lazy(() => import("./components/Admin"));
 export default function App() {
-  const [route, setRoute] = useState(location.hash.slice(1) || "/");
+  const [route, setRoute] = useState(currentPath);
   const [business, setBusiness] = useState<Business | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -45,14 +47,20 @@ export default function App() {
       });
   useEffect(() => {
     captureSource();
-    void load();
     const change = () => {
-      setRoute(location.hash.slice(1) || "/");
+      setRoute(currentPath());
+      captureSource();
       setMenu(false);
       window.scrollTo(0, 0);
     };
     window.addEventListener("hashchange", change);
-    return () => window.removeEventListener("hashchange", change);
+    window.addEventListener("popstate", change);
+    document.addEventListener("click", interceptNavigation);
+    return () => {
+      window.removeEventListener("hashchange", change);
+      window.removeEventListener("popstate", change);
+      document.removeEventListener("click", interceptNavigation);
+    };
   }, []);
   useEffect(() => {
     if (!route.startsWith("/admin")) void load();
@@ -74,12 +82,58 @@ export default function App() {
           ? (b.price ?? -1) - (a.price ?? -1)
           : a.name.localeCompare(b.name),
     );
-  const selected = route.startsWith("/product/")
-    ? products.find((p) => p.id === decodeURIComponent(route.slice(9)))
+  const collection = route.startsWith("/collections/")
+    ? categories.find((c) => c.id === route.split("/").at(-1))
     : undefined;
+  const isDesign =
+    route.startsWith("/product/") || route.startsWith("/design/");
+  const selected = isDesign
+    ? products.find((p) => p.id === route.split("/").at(-1))
+    : undefined;
+  useEffect(() => {
+    if (collection) setCategory(collection.id);
+    else if (route === "/") setCategory("all");
+    if (!loaded && (isDesign || route.startsWith("/collections/"))) return;
+    const meta = pageMetadata(route, selected, collection);
+    document.title = meta.title;
+    document
+      .querySelector('meta[name="description"]')
+      ?.setAttribute("content", meta.description);
+    let canonical = document.querySelector<HTMLLinkElement>(
+      'link[rel="canonical"]',
+    );
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+    }
+    let robots = document.querySelector<HTMLMetaElement>('meta[name="robots"]');
+    if (!robots) {
+      robots = document.createElement("meta");
+      robots.name = "robots";
+      document.head.appendChild(robots);
+    }
+    robots.content =
+      route.startsWith("/admin") ||
+      (!selected && !collection && !["/", "/contact", "/about"].includes(route))
+        ? "noindex, nofollow"
+        : "index, follow";
+    canonical.href =
+      location.origin +
+      (selected
+        ? productURL(selected)
+        : collection
+          ? categoryURL(collection)
+          : route);
+    if (selected && route.startsWith("/product/"))
+      navigate(productURL(selected), true);
+    else if (location.hash.startsWith("#/") && !isDesign) navigate(route, true);
+  }, [route, selected, collection]);
   const browse = (id = "all") => {
     setCategory(id);
-    location.hash = "/";
+    setQuery("");
+    const target = categories.find((c) => c.id === id);
+    navigate(target ? categoryURL(target) : "/");
     setTimeout(
       () =>
         document
@@ -105,7 +159,7 @@ export default function App() {
         <span>A considered approach to furniture.</span>
       </div>
       <header className="site-header">
-        <a className="brand" href="#/" aria-label="Aaranya Living home">
+        <a className="brand" href="/" aria-label="Aaranya Living home">
           <BrandMark />
           <span>
             Aaranya Living
@@ -114,9 +168,9 @@ export default function App() {
         </a>
         <nav aria-label="Main navigation" className={menu ? "nav open" : "nav"}>
           <button onClick={() => browse()}>Explore furniture</button>
-          <a href="#/about">Our approach</a>
-          <a href="#/contact">Contact</a>
-          <a href="#/admin">
+          <a href="/about">Our approach</a>
+          <a href="/contact">Contact</a>
+          <a href="/admin">
             Owner studio <ArrowUpRight size={14} />
           </a>
         </nav>
@@ -166,7 +220,7 @@ export default function App() {
               color. These choices describe your request; they do not constitute
               an accepted order or a fixed price.
             </p>
-            <a className="btn" href="#/">
+            <a className="btn" href="/">
               Explore the collection <ArrowRight size={18} />
             </a>
           </section>
@@ -183,11 +237,18 @@ export default function App() {
               )
               .slice(0, 3)}
           />
-        ) : route.startsWith("/product/") ? (
+        ) : isDesign ? (
           <div className="container prose">
             <h1>{loaded ? "Design not found" : "Loading design…"}</h1>
-            <a href="#/">Back to collection</a>
+            <a href="/">Back to collection</a>
           </div>
+        ) : route !== "/" && !collection ? (
+          <section className="container prose">
+            <h1>Page not found.</h1>
+            <a className="btn" href="/">
+              Explore the collection
+            </a>
+          </section>
         ) : (
           <>
             <section className="hero">
@@ -196,7 +257,9 @@ export default function App() {
                   <span /> A HOME, UNIQUELY YOURS
                 </p>
                 <h1>
-                  Furniture with soul.
+                  {collection
+                    ? `${collection.name}, thoughtfully considered.`
+                    : "Furniture with soul."}
                   <br />
                   <em>Made for your life.</em>
                 </h1>
@@ -254,6 +317,23 @@ export default function App() {
                 </span>
               </div>
             </section>
+            {!collection && (
+              <section
+                className="featured container"
+                aria-label="Featured design concepts"
+              >
+                <p className="eyebrow">SELECTED IDEAS</p>
+                <h2>Three ways to make room for you.</h2>
+                <div className="product-grid">
+                  {["sofas", "beds", "dining"]
+                    .map((id) => products.find((p) => p.category_id === id))
+                    .filter((p): p is Product => !!p)
+                    .map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                </div>
+              </section>
+            )}
             <section id="collection" className="collection container">
               <div className="section-heading">
                 <div>
@@ -373,6 +453,47 @@ export default function App() {
                 </div>
               )}
             </section>
+            <section className="order-process container">
+              <p className="eyebrow">HOW CUSTOM ORDERS WORK</p>
+              <h2>A considered journey, one conversation at a time.</h2>
+              <ol>
+                {[
+                  ["Browse", "Explore clearly labeled design concepts."],
+                  [
+                    "Customize",
+                    "Share dimensions, preferred materials and color.",
+                  ],
+                  [
+                    "Request quote",
+                    "Send a private inquiry with your consent.",
+                  ],
+                  [
+                    "Discuss",
+                    "Confirm feasibility, scope and a final price with the owner.",
+                  ],
+                  [
+                    "Manufacture / deliver",
+                    "Proceed only after agreement; timing and installation require confirmation.",
+                  ],
+                ].map(([title, text], i) => (
+                  <li key={title}>
+                    <span>0{i + 1}</span>
+                    <h3>{title}</h3>
+                    <p>{text}</p>
+                  </li>
+                ))}
+              </ol>
+            </section>
+            <section className="local-intro container">
+              <h2>Planning a furniture project in Pune?</h2>
+              <p>
+                Tell us about your space and locality. Exact service areas,
+                materials and delivery feasibility are confirmed during review.
+              </p>
+              <a className="btn secondary" href="/contact">
+                Discuss your space
+              </a>
+            </section>
             <section className="bespoke">
               <p className="eyebrow">A LITTLE MORE YOU</p>
               <h2>
@@ -393,15 +514,15 @@ export default function App() {
         )}
       </main>
       <footer>
-        <a href="#/" className="brand">
+        <a href="/" className="brand">
           <BrandMark />
           <span>Aaranya Living</span>
         </a>
         <p>Where Nature Meets Craftsmanship.</p>
         <div>
-          <a href="#/about">How it works</a>
-          <a href="#/contact">Contact</a>
-          <a href="#/admin">Owner studio</a>
+          <a href="/about">How it works</a>
+          <a href="/contact">Contact</a>
+          <a href="/admin">Owner studio</a>
         </div>
         <small>
           Designs are illustrative concepts. All specifications and final prices

@@ -1,17 +1,21 @@
-# Happy Fatun · Furniture, made personal
+# Aaranya Living · Where Nature Meets Craftsmanship.
+
+Working brand approved in Issue #1; repository slug remains `Happy_Fatun`. No trademark registration or domain ownership is claimed.
 
 A mobile-first furniture concept catalog and private owner studio, implementing [Issue #1](https://github.com/Vishnu063/Happy_Fatun/issues/1). Customers request quotations; there is **no checkout or payment flow**.
 
 ## Architecture and tradeoffs
 
 - **React + TypeScript + Tailwind + Vite**: reusable product cards, gallery, customization form, and admin editors. The owner studio and Three.js viewer load on demand.
-- **Cloudflare Worker + Hono + D1**: same-origin server APIs, SQL migrations, persistent quote snapshots, price audit, and server-side owner authorization. Cloudflare's free allowances suit an initial catalog; quotas and commercial terms may change. D1 couples deployment to Cloudflare but avoids maintaining a database server. Local Wrangler runs the Worker/D1 runtime without a cloud account.
+- **Cloudflare Worker + Hono + D1**: same-origin server APIs, SQL migrations, persistent quote snapshots, price audit, and server-side owner authorization. Cloudflare's free allowances suit an initial catalog; quotas and commercial terms may change. D1 couples deployment to Cloudflare but avoids maintaining a database server. Local Wrangler runs Worker/D1/R2 emulation without a cloud account. Uploaded image bytes live in object storage, with type/size/alt/classification metadata and ordering in D1. No production bucket or account was created.
 - **One owner**: PBKDF2-SHA256 password hash (210,000 iterations), random salt, signed 1-hour HttpOnly, SameSite=Strict cookies, Secure in production, origin verification and persistent login throttling. No default credentials, registration, public write access to the catalog, or client-side authorization shortcuts. Rotating the password hash or session secret invalidates existing sessions. Sign-out revokes the server-side D1 session and clears the browser cookie. Copied cookies are rejected after successful logout.
 - **Resend adapter**: optional server-only provider key, one configured owner recipient, persistent delivery states and retry. Email contains a reference only; customer details stay in the private dashboard. Quotes are saved before email is attempted. A stable provider idempotency key reduces duplicates within the provider's retention window.
 - **Three.js**: three original generic sofa/dining/desk geometry demos. These are explicitly **not accurate product models**. Unsupported devices use the gallery. No photo-to-3D claims.
-- **24 original demo concepts**: six categories, three original SVG illustrations per category (white background, room scene, alternative view). Illustrations are shared across concepts, not real product photography. No invented pricing, reviews, warranties, stock or delivery promises. All initial prices are unset. Replace with permitted manufacturer-approved assets before business launch.
+- **24 original demo concepts**: six categories, three original SVG illustrations per category (white background, room scene, alternative view). Illustrations are shared across concepts, not real product photography. No invented pricing, reviews, warranties, stock or delivery promises. All initial prices are unset. Owner-approved placeholder-first launch is supported: keep all concepts clearly labeled, then replace them through the studio when improved images are available. These are designed vector placeholders, not AI-generated photos.
 
 Wrangler currently depends on an older Undici version; `package.json` overrides it with compatible `7.30.1` to address the advisories reported by npm audit. Validate the local runtime after dependency updates.
+
+Before each development phase, run `npm run brief` and follow the current Issue #1 and PR #2 instructions. Keep PR #2 open; do not merge/deploy, configure paid services/secrets, or use EC2 without explicit owner direction. See `AGENTS.md` and `docs/PHASES.md`.
 
 ## Requirements and first run
 
@@ -38,7 +42,7 @@ Start the built full stack:
 npm run dev:api
 ```
 
-Wrangler serves the built site and `/api` on port 8787. To work with React hot reload, keep that process running and start `npm run dev` in a second terminal (port 5173). Vite proxies `/api` to Wrangler; only those two localhost Vite origins are accepted in development. Rebuild after changing frontend files when using Wrangler's built assets directly. In restricted sandboxes, Wrangler/Chromium need permission to bind loopback ports. `WRANGLER_LOG_PATH=/tmp/happy-fatun-wrangler.log` can move its logs to a writable location.
+Wrangler serves the built site and `/api` on port 8787. To work with React hot reload, keep that process running and start `npm run dev` in a second terminal (port 5173). Vite proxies `/api` and `/media` to Wrangler; only those two localhost Vite origins are accepted in development. Rebuild after changing frontend files when using Wrangler's built assets directly. In restricted sandboxes, Wrangler/Chromium need permission to bind loopback ports. `WRANGLER_LOG_PATH=/tmp/happy-fatun-wrangler.log` can move its logs to a writable location.
 
 The public catalog works without owner credentials. Quote submission requires a random SESSION_SECRET of at least 32 characters and fails closed without it. The studio fails closed with a configuration error until both authentication secrets are set. No placeholder or test password is accepted in production automatically.
 
@@ -60,36 +64,41 @@ E2E tests require a build first. They use `/usr/bin/chromium` if available; othe
 
 Open **Owner studio** from the navigation or footer. After signing in:
 
-- **Products**: create, edit and delete designs; select a category; edit specs, material/color options, starting price, private internal cost, status, gallery asset URLs and optional generic geometry. Archived designs are hidden publicly. Available status must only be selected after owner approval. Editing a starting price atomically records the previous and new values in the private audit.
+- **Products**: create, edit and delete designs; select a category; edit specs, material/color options, starting price, private internal cost, status, gallery uploads/order/replacement and optional generic geometry. Archived designs are hidden publicly. Available status must only be selected after owner approval. Editing a starting price atomically records the previous and new values in the private audit.
 - **Categories**: create, rename and delete empty categories. Move/delete their products first.
 - **Inquiries**: search by reference/name/area/design; filter by all seven statuses; inspect immutable product/configuration snapshots and customer consent; update private costs/final quote. Minimum margin warnings use `(final price − internal cost) / final price`. Saving a final quote does not automatically send it to the customer; the owner contacts the customer after manufacturer review.
 - **Price history**: review server-recorded starting price changes.
-- **Settings**: set the minimum margin. Authentication, public contacts and provider secrets are deployment configuration, not browser fields.
+- **Leads**: search/filter the same inquiries by New, Contacted, Quote Sent, Won or Lost; save private follow-up notes/dates; review totals, sources and inquiry-to-won ratios. Stages map to existing quotation status: Reviewing→Contacted, Quoted→Quote Sent, Confirmed/Manufacturing/Delivered→Won, Closed→Lost. Keep a completed won order Delivered rather than Closed if it should remain in won totals.
+- **Settings**: configure accurate public contact/WhatsApp/address/service-area/introduction fields and the minimum margin. Authentication and notification provider secrets remain server configuration. Public contact fields never change the private notification recipient.
 
 Amounts are integer **paise** in the API/database and rupees in the UI. Public payloads whitelist safe fields. Public visitors cannot read inquiries, costs or price audit records. Quote submission is the only public data mutation. It requires server validation, a matching origin, consent, a honeypot and a hashed-IP rate limit. Missing edge IP in local development shares one local rate bucket. Clear expired throttles by waiting for expiry, not by disabling the production limits.
 
-Photo assets are **URL-managed**, not uploaded into D1: add permitted files to `public/assets/` and redeploy, or use a trusted HTTPS image host. First photo should use a white background, second a room, followed by angles/details. Owner controls the order. Do not upload customer or confidential images to public asset storage. Color/material lists are the available customization variants; selections are requests, not feasibility guarantees. Product deletion preserves inquiry snapshots and audit history.
+Image management is owner-only and saved immediately: upload PNG/JPEG/WebP, reorder, replace a selected slot or delete while keeping at least one image. The browser strips metadata and converts to WebP (longest side ≤1600px). Sources must be ≤12 MB, ≤6000px/side and ≤24 megapixels; the server checks raster signatures/container dimensions, declared MIME and a ≤5 MB upload limit. SVG uploads are rejected. R2 stores bytes outside source code; D1 stores metadata and ordered image references. No code deployment is needed for replacement after the storage binding is configured. The local R2 emulator is included. Real production storage requires owner approval/setup; no paid service or billing configuration was performed. First view should be white studio, second the exact same furniture in a room. AI/concept images must be classified illustrative; approved real photos may be classified photo. Do not upload private/customer material to this public product-image storage. Existing product IDs, prices, descriptions and inquiry records are preserved. Removed image URLs may become unavailable; quote text/configuration/price snapshots remain stored.
+
+Descriptive `/design/<name>/<id>` and `/collections/<name>/<id>` URLs retain stable product IDs. Legacy product paths redirect and old hash links remain compatible. The Worker serves initial public summaries, unique titles/descriptions/canonicals and safe schema without requiring JavaScript. `/sitemap.xml` reflects current public products/categories. Archived/missing designs are excluded; owner routes are noindex. Concept designs use CreativeWork schema rather than fabricated stock/offer/rating data. No address, reviews, availability or fixed prices are invented.
+
+See `docs/LOCAL_ACQUISITION.md` for the post-launch owner checklist. Source attribution uses an allowlisted campaign source in browser-tab storage, with no cross-site identifier. Live visitor analytics and bulk outreach remain deferred; lead counts are not unique visitor counts or guaranteed sales.
 
 ## Notifications and public contact
 
-| Variable                           | Purpose                                                           |
-| ---------------------------------- | ----------------------------------------------------------------- |
-| `OWNER_PASSWORD_HASH`              | Salted owner password hash, stored as a secret                    |
-| `SESSION_SECRET`                   | Random signing secret, at least 32 characters, stored as a secret |
-| `EMAIL_MODE`                       | `disabled` (default), `local` (development only), or `resend`     |
-| `RESEND_API_KEY`                   | Server-only provider API key                                      |
-| `EMAIL_FROM`                       | Provider-approved sender or sender/domain you verified            |
-| `OWNER_EMAIL`                      | **One** notification recipient (single valid address)             |
-| `BUSINESS_EMAIL`, `BUSINESS_PHONE` | Optional public contact shown after successful quote submission   |
-| `ENVIRONMENT`                      | `production` on deployed hosts; `development` only for local use  |
+| Variable                           | Purpose                                                             |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `OWNER_PASSWORD_HASH`              | Salted owner password hash, stored as a secret                      |
+| `SESSION_SECRET`                   | Random signing secret, at least 32 characters, stored as a secret   |
+| `EMAIL_MODE`                       | `disabled` (default), `local` (development only), or `resend`       |
+| `RESEND_API_KEY`                   | Server-only provider API key                                        |
+| `EMAIL_FROM`                       | Provider-approved sender or sender/domain you verified              |
+| `OWNER_EMAIL`                      | **One** notification recipient (single valid address)               |
+| `BUSINESS_EMAIL`, `BUSINESS_PHONE` | Optional public contact shown on Contact/product/confirmation pages |
+| `ENVIRONMENT`                      | `production` on deployed hosts; `development` only for local use    |
 
 Delivery states: `pending`, `sending`, `sent`, `failed`, `disabled`, `local`. The owner can retry in the inquiry details. Already-sent messages are not resent; stale `sending` claims become retryable after five minutes. Provider errors are not logged with request bodies or customer data. A provider outage never discards a saved inquiry. Check `failed`/`disabled` inquiries in the studio if email is unavailable. Real email needs a Resend account, verified sender and valid key; local mode is not proof of external delivery. No SMS service is required.
 
-## Deployment (Cloudflare free-tier-compatible)
+## Deployment reference (only after explicit owner authorization)
 
 1. Create a Cloudflare account and authenticate Wrangler on your own machine (`npx wrangler login`), or configure a scoped CI token securely.
 2. Run `npx wrangler d1 create happy-fatun`. Replace **only** the placeholder `database_id` in `wrangler.jsonc` with the returned ID. Do not deploy the local placeholder. Review your account/database target.
-3. Run `npm ci`, `npm run build`, then `npm run db:remote`. The initial migration includes demo concepts without prices; it does not overwrite later edits when reapplied.
+3. Configure an owner-approved product-image bucket and bind it as `PRODUCT_IMAGES` (the example uses `aaranya-product-images`). Local tests use emulation only; no real bucket exists from this work. Review provider eligibility, quotas and account requirements before enabling production storage. Run `npm ci`, `npm run build`, then `npm run db:remote`. The initial migration includes demo concepts without prices; it does not overwrite later edits when reapplied.
 4. Configure `OWNER_PASSWORD_HASH` and `SESSION_SECRET` via `npx wrangler secret put NAME` or the Cloudflare dashboard. Do not use the E2E fixtures. For email, also configure `RESEND_API_KEY`; set `EMAIL_MODE=resend`, `EMAIL_FROM`, and `OWNER_EMAIL` in deployment variables. Optional business contacts must be accurate before setting them. Leave `ENVIRONMENT=production` to require Secure cookies.
 5. `npm run deploy:check` verifies production configuration without deploying; `npm run deploy` uses that guard. Public-host APIs fail closed if development mode is enabled. Worker static assets and APIs use the same HTTPS origin. Security headers for assets live in `public/_headers`; API responses are noncacheable. No public CORS access is enabled.
 6. Verify live owner sign-in, anonymous write rejection, quote persistence, owner notification, price update and public refresh. Deployment and external email are **unverified until those checks run**. Do not imply that local tests provision accounts or publish the site.
@@ -100,4 +109,4 @@ Network destinations: npm registry for install, GitHub for source/PRs (`github.c
 
 Customer names, contact details, area and configuration are stored in D1 and are owner-only. Use a scoped Cloudflare account, limit dashboard access, keep database backups private, set a business retention policy, and delete expired customer records using an authenticated D1 maintenance command. No customer-record export endpoint is public. Avoid publishing real inquiry data in screenshots, logs or bug reports. Consent only covers replying about the inquiry; this app does not subscribe anyone to marketing.
 
-Before launch, the owner needs to supply/approve brand identity, contact phone/email, delivery areas and real product assets. Configure real email and owner secrets, replace demo content, and review the privacy/retention wording for the business. This project does not invent those business facts. The current hash-router SPA is inexpensive to host, but per-product server-rendered SEO/social previews, image upload/storage, multiple admins, 2FA, automatic customer quote emails, payments, inventory and fulfillment are outside this implementation.
+Before launch, the owner needs to confirm contact phone/email, delivery areas and business details; polished images can be replaced later under the approved placeholder-first workflow. Configure real email and owner secrets, replace demo content, and review the privacy/retention wording for the business. This project does not invent those business facts. Multiple admins, 2FA, automatic customer quote emails, payments, inventory and fulfillment are outside this implementation. Live deployment, external email, production R2 and real-world acquisition remain unverified.

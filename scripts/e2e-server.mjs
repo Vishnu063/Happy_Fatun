@@ -23,7 +23,7 @@ writeFileSync(
       directory: join(root, "dist"),
       binding: "ASSETS",
       not_found_handling: "single-page-application",
-      run_worker_first: ["/api/*", "/media/*"],
+      run_worker_first: true,
     },
     r2_buckets: [
       { binding: "PRODUCT_IMAGES", bucket_name: "aaranya-test-images" },

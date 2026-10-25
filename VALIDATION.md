@@ -1,41 +1,40 @@
 # Verification record
 
-Observed in the managed development environment on 25 October 2026. These results concern the local implementation; they do not establish production deployment or external email delivery.
+Observed on 25 October 2026 in the existing `Vishnu063/Happy_Fatun` checkout. Results below distinguish local validation, the security commit's GitHub CI, and unverified production services.
 
-## Passed
+## Current local results
 
-| Check                         | Actual result                                                                                           |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `npm ci --no-audit --no-fund` | Clean lockfile installation succeeded (160 packages)                                                    |
-| `npm run build`               | Strict TypeScript + Vite production build passed                                                        |
-| `npm test`                    | **14 API integration tests passed**, no skipped tests                                                   |
-| `npm run test:e2e`            | **4 Chromium tests passed**, two desktop and two Pixel 7 mobile-profile tests                           |
-| Automated accessibility       | Axe WCAG 2 A/AA + 2.1 AA rules: no violations on catalog and signed-in inquiry dashboard, both profiles |
-| `npm run format:check`        | Passed after formatting source, tests and configuration                                                 |
-| `npm audit`                   | **0 known vulnerabilities** after compatible dependency updates and Undici override                     |
-| Local D1 migrations           | Initial seed applied; two subsequent applications reported no pending migrations                        |
-| Standard startup              | `npm run dev:api` served HTML, health JSON, catalog JSON and SVG with HTTP 200                          |
-| Standard catalog request      | 24 demo concepts; private cost fields absent                                                            |
+| Check                                  | Observed result                                                                                                     |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `npm run build`                        | TypeScript and Vite production build passed                                                                         |
+| `npm test`                             | **32 tests passed**, 3 files, no skipped tests: 21 API/media/lead cases, 7 security cases, 4 SEO cases              |
+| `npm run test:e2e -- --max-failures=1` | **4 tests passed**, two desktop and two Pixel 7 mobile-profile tests; all planned tests completed                   |
+| Accessibility                          | Axe WCAG 2 A/AA and 2.1 AA rules reported no violations on catalog and signed-in inquiry dashboard in both profiles |
+| `npm audit --audit-level=moderate`     | **0 vulnerabilities**                                                                                               |
+| `npm run deploy:check`                 | Production configuration guard passed; no deployment performed                                                      |
+| Local migrations                       | Media, revocable-session and lead-follow-up migrations applied successfully to local D1 without reset               |
+| Clean install                          | Previously verified `npm ci` with the same dependency lockfile; follow-on work added no dependencies                |
 
-API tests exercise anonymous admin rejection; cross-origin mutation rejection; oversized/invalid JSON; missing consent, honeypot, bounds and unsupported materials; password/session validation and login throttling; production cookie flags and expiry; price persistence/audit; product/category CRUD; immutable inquiry snapshots after product deletion; configuration persistence/unique references; quote rate limits; failed-email persistence and retry to exactly one owner; configured public contacts; status and minimum-margin calculations. Tests use SQLite and the actual Worker application handlers. Email transport is mocked only in the provider-specific tests.
+The browser suite uses the actual local Worker/D1/R2 emulators and built assets. It verifies search/category/material/price filtering, sorting, keyboard/synthetic-touch gallery navigation, 3D canvas or device fallback, customized quote persistence, owner login, anonymous write rejection, copied-cookie revocation after logout, price audit/public refresh, lead notes/date persistence and stage filtering, owner-configured contact/WhatsApp links, descriptive URLs and server-rendered product summaries, product/category CRUD, and browser-optimized image upload/reorder/replace/delete. It checks overflow and uncaught page errors. The test server's database, credentials and images are isolated from the user's local and production data.
 
-Browser tests use the real local Worker/D1 runtime and built static assets. They cover search, category/material and price filtering, ascending/descending price sorting, gallery buttons/keyboard, synthetic touch swipe on the mobile profile, optional 3D canvas or unavailable-device fallback, customized quote submission, stored configuration in the dashboard, login/logout, anonymous direct write rejection, margin warning, price edit/audit/public refresh, and product/category creation/rename/deletion. They check horizontal overflow and uncaught browser errors on the primary flow. Isolated test data and credentials are removed with the test server. Mobile emulation and synthetic touch are not proof of behavior on every physical device.
+API tests also exercise image type/MIME/size/dimension validation, unauthorized image operations, database-failure object cleanup, preservation of product IDs/prices/descriptions/quote snapshots, stale-editor gallery protection, lead source/date validation and cost preservation, public contact projection, malformed JSON, missing/cross origins, public PII exposure, rate limits, failed-email persistence/retry, production settings and HTML/JSON-LD escaping. Provider transport is mocked; no real email is sent.
 
-Initial failures were investigated and resolved: npm peer version conflict; TypeScript JSON typing; browser selector/touch fixture errors; contrast on the hero note/decorative text; keyboard access to the mobile process strip; and a redundant private reload after sign-out. No assertions were disabled to obtain passing results. Dev-tool advisories were addressed with patched versions and a compatible override; the final runtime tests use those packages.
+## Failures investigated and corrected
 
-## Delivery phases
+- A real asset-binding redirect from `/index.html` produced a blank HTML response. A regression reproduced the empty response; the Worker now fetches the root HTML asset and checks its response before rendering. The updated SEO and actual browser checks passed.
+- A regression reproduced an old product editor overwriting a newer uploaded gallery while saving a price. General product updates now leave gallery ordering/references to the dedicated media endpoints. The uploaded gallery and new price both persist.
+- An exact-label test selector failed on a saved textarea even though its saved value appeared in the page snapshot. The test now uses the textbox's accessible role/name; persistence assertions remain enabled.
 
-1. Repository inspection, baseline architecture and documented commands.
-2. Catalog with 24 clearly labeled original demo concepts, search/filter/sort, related designs and responsive gallery.
-3. Persisted quote requests, full configuration snapshots, unique references, consent, input validation and throttling.
-4. Server-authorized owner studio with product/category CRUD, asset URL management, prices, quote statuses, private calculations and price audit.
-5. Configurable single-owner email adapter with delivery status/retry; three generic concept geometry models with explicit labeling and fallback.
-6. Local build, integration/browser/accessibility checks, CI configuration and deployment instructions.
+After those changes, the full 32-test suite and all four browser tests passed. No assertions were disabled. Earlier implementation failures and fixes are retained in the Git history.
 
-## Not verified / external prerequisites
+## GitHub and review scope
 
-- No Cloudflare account/database was provisioned and no production site was deployed. The checked-in D1 database ID is deliberately a placeholder. Replace it and configure server secrets before deployment.
-- No real email was sent. Configure Resend, a verified sender and the single owner recipient, then verify live delivery. `local` is a simulated status, not a sent message.
-- Real owner credentials, business phone/email, service areas and manufacturer-approved product photos are not supplied. Initial catalog prices are unset; demo geometry does not represent actual products. Asset management uses approved file/HTTPS links; direct upload storage is not included.
-- Automated accessibility checks cover the named screens; a complete manual assistive-technology audit and physical-device matrix have not been performed.
-- Initial direct GitHub API requests were denied (HTTP CONNECT 403). A later GitHub CLI request successfully created [PR #2](https://github.com/Vishnu063/Happy_Fatun/pull/2) from `feat/furniture-platform` into `main`; both branches were pushed. The earlier denial did not remain a blocker. An `api.github.com` allowlist addition plus tested install/start instructions were saved to the environment draft; this does not establish that the draft was applied or published.
+Before each follow-on phase, Issue #1, its four owner comments, repository issues, PR #2 conversation/security review and inline comments were checked. The security review took priority when discovered. Both GitHub CI runs for security commit `8ad6765` passed. This is evidence for that commit; later follow-on commits require their own push and CI checks. PR #2 must remain open and unmerged pending owner review. See `docs/PHASES.md` and `docs/SECURITY.md`.
+
+## Remaining limits
+
+- The long-lived standard development process returned a local 503 after configuration/asset reloads. It was stopped; its restart request was **not executed** because automatic approval review hit a usage limit. The fresh, isolated browser test server passed, but this record does not claim the standard process was successfully restarted.
+- No production deployment, Cloudflare account/database/bucket provisioning, billing configuration, production secret entry, EC2 activity or outreach occurred. The production D1 ID remains a placeholder. Local R2 emulation is not proof of live storage configuration.
+- No real email delivery, real-world acquisition, physical-device matrix, full manual assistive-technology audit or Core Web Vitals field measurement was verified.
+- Current demo visuals are original designed SVG placeholders, **not AI-generated photos or manufactured stock**. Generic 3D geometry is explicitly illustrative. Owner-approved placeholder-first launch is supported; improved lawful photos/concepts can be swapped through image management after storage is configured.
+- Actual business contacts, service areas and credentials remain owner supplied. Lead/source/won totals are implemented; live visit analytics and marketing actions remain deferred until owner-approved launch, as documented in `docs/LOCAL_ACQUISITION.md`.

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { modelFrame } from "./model-frame";
 const ownerPassword = "e2e-only-owner-password-not-for-production";
 test("catalog, gallery, configuration, persisted quote and private owner flow", async ({
   page,
@@ -522,19 +523,16 @@ test("catalog growth keeps initial rendering bounded and all designs discoverabl
   page,
   isMobile,
 }) => {
-  await page.route("**/api/catalog", async (route) => {
-    const response = await route.fetch();
-    const data = await response.json();
-    const base = data.products[0];
-    data.products = Array.from({ length: 300 }, (_, i) => ({
-      ...base,
-      id: `isolated-growth-${i}`,
-      name: `Isolated growth fixture ${String(i).padStart(3, "0")}`,
-      description: "Isolated browser load fixture; never published or stored.",
-      model: null,
-    }));
-    await route.fulfill({ response, json: data });
-  });
+  const data = await (await page.request.get("/api/catalog")).json();
+  const base = data.products[0];
+  data.products = Array.from({ length: 300 }, (_, i) => ({
+    ...base,
+    id: `isolated-growth-${i}`,
+    name: `Isolated growth fixture ${String(i).padStart(3, "0")}`,
+    description: "Isolated browser load fixture; never published or stored.",
+    model: null,
+  }));
+  await page.route("**/api/catalog", (route) => route.fulfill({ json: data }));
   await page.goto("/");
   await expect(page.locator("#collection .product-card")).toHaveCount(24);
   await page
@@ -564,6 +562,7 @@ test("catalog growth keeps initial rendering bounded and all designs discoverabl
   await expect(page.locator("#collection .product-card")).toContainText(
     "Isolated growth fixture 298",
   );
+  await page.unrouteAll({ behavior: "wait" });
   if (isMobile)
     await page
       .getByRole("button", { name: "Open navigation", exact: true })
@@ -590,121 +589,141 @@ test("catalog growth keeps initial rendering bounded and all designs discoverabl
   ).toBeVisible();
 });
 
-test("every seeded design exposes honest 3D availability and working demo controls", async ({
-  page,
-  isMobile,
-}) => {
-  test.setTimeout(180000);
-  page.setDefaultTimeout(10000);
-  const { products } = await (await page.request.get("/api/catalog")).json();
-  expect(products).toHaveLength(24);
-  const inventory: { id: string; shape: string | null; result: string }[] = [];
-  for (const product of products) {
-    await page.goto(`/design/${product.id}`);
-    if (!product.model) {
+for (const family of [
+  "beds",
+  "chairs",
+  "desks",
+  "dining",
+  "sofas",
+  "wardrobes",
+]) {
+  test(`per-product 3D inventory: ${family}`, async ({ page, isMobile }) => {
+    test.setTimeout(180000);
+    page.setDefaultTimeout(10000);
+    const { products } = await (await page.request.get("/api/catalog")).json();
+    expect(products).toHaveLength(24);
+    const inventory: { id: string; shape: string | null; result: string }[] =
+      [];
+    const familyProducts = products.filter(
+      (p: { category_id: string }) => p.category_id === family,
+    );
+    expect(familyProducts).toHaveLength(4);
+    for (const product of familyProducts) {
+      await page.goto(`/design/${product.id}`);
+      if (!product.model) {
+        await expect(
+          page.getByRole("button", { name: "360°", exact: true }),
+        ).toHaveCount(0);
+        inventory.push({ id: product.id, shape: null, result: "gallery-only" });
+        continue;
+      }
+      await page.getByRole("button", { name: "360°", exact: true }).click();
+      const canvas = page.locator(".viewer canvas");
       await expect(
-        page.getByRole("button", { name: "360°", exact: true }),
-      ).toHaveCount(0);
-      inventory.push({ id: product.id, shape: null, result: "gallery-only" });
-      continue;
-    }
-    await page.getByRole("button", { name: "360°", exact: true }).click();
-    const canvas = page.locator(".viewer canvas");
-    await expect(
-      canvas.or(page.getByText("3D is unavailable on this device.")),
-    ).toBeVisible();
-    if (!(await canvas.isVisible())) {
+        canvas.or(page.getByText("3D is unavailable on this device.")),
+      ).toBeVisible();
+      if (!(await canvas.isVisible())) {
+        inventory.push({
+          id: product.id,
+          shape: product.model,
+          result: "device-fallback; controls not verified",
+        });
+        continue;
+      }
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      ).toBe(true);
+      await canvas.scrollIntoViewIfNeeded();
+      await expect
+        .poll(async () => (await modelFrame(canvas)).colors)
+        .toBeGreaterThan(2);
+      const initial = (await modelFrame(canvas)).hash;
+      for (const name of [
+        "Rotate model left",
+        "Rotate model right",
+        "Rotate model up",
+        "Rotate model down",
+        "Zoom model in",
+        "Zoom model out",
+      ]) {
+        await page.getByRole("button", { name, exact: true }).click();
+        await expect
+          .poll(async () => (await modelFrame(canvas)).hash)
+          .not.toBe(initial);
+        expect(
+          await page.evaluate(() => window.visualViewport?.scale ?? 1),
+        ).toBe(1);
+        await page
+          .getByRole("button", { name: "Reset model view", exact: true })
+          .click();
+        await expect
+          .poll(async () => (await modelFrame(canvas)).hash)
+          .toBe(initial);
+      }
+      if (isMobile) {
+        const box = (await canvas.boundingBox())!;
+        const client = await page.context().newCDPSession(page);
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchStart",
+          touchPoints: [
+            { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          ],
+        });
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchMove",
+          touchPoints: [
+            { x: box.x + box.width / 2 - 60, y: box.y + box.height / 2 - 40 },
+          ],
+        });
+        await client.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        });
+        await expect
+          .poll(async () => (await modelFrame(canvas)).hash)
+          .not.toBe(initial);
+        await client.detach();
+      }
       inventory.push({
         id: product.id,
         shape: product.model,
-        result: "device-fallback; controls not verified",
+        result: isMobile
+          ? "generic controls and touch verified"
+          : "generic controls verified",
       });
-      continue;
     }
-    expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= window.innerWidth,
-      ),
-    ).toBe(true);
-    const initial = await canvas.screenshot();
-    for (const name of [
-      "Rotate model left",
-      "Rotate model right",
-      "Rotate model up",
-      "Rotate model down",
-      "Zoom model in",
-      "Zoom model out",
-    ]) {
-      await page.getByRole("button", { name, exact: true }).click();
-      await expect
-        .poll(async () => (await canvas.screenshot()).equals(initial))
-        .toBe(false);
-      expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(
-        1,
-      );
-      await page
-        .getByRole("button", { name: "Reset model view", exact: true })
-        .click();
-      await expect
-        .poll(async () => (await canvas.screenshot()).equals(initial))
-        .toBe(true);
-    }
-    if (isMobile) {
-      const box = (await canvas.boundingBox())!;
-      const client = await page.context().newCDPSession(page);
-      await client.send("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
-      });
-      await client.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [
-          { x: box.x + box.width / 2 - 60, y: box.y + box.height / 2 - 40 },
-        ],
-      });
-      await client.send("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: [],
-      });
-      await expect
-        .poll(async () => (await canvas.screenshot()).equals(initial))
-        .toBe(false);
-      await client.detach();
-    }
-    inventory.push({
-      id: product.id,
-      shape: product.model,
-      result: isMobile
-        ? "generic controls and touch verified"
-        : "generic controls verified",
+    await test.info().attach("per-product-demo-3d-inventory", {
+      body: JSON.stringify(inventory, null, 2),
+      contentType: "application/json",
     });
-  }
-  await test.info().attach("per-product-demo-3d-inventory", {
-    body: JSON.stringify(inventory, null, 2),
-    contentType: "application/json",
+    console.log(
+      `${isMobile ? "Mobile" : "Desktop"} ${family} 3D inventory: ${inventory.filter((i) => i.result.startsWith("generic")).length} generic demos verified, ${inventory.filter((i) => i.result.startsWith("device")).length} device fallbacks, ${inventory.filter((i) => i.result === "gallery-only").length} gallery-only; zero accurate product models`,
+    );
+    if (family !== "sofas") return;
+    // Deliberately remove WebGL once per profile, rather than relying on a machine that lacks it.
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...args: unknown[]
+      ) {
+        if (type.includes("webgl")) return null;
+        return Reflect.apply(original, this, [type, ...args]);
+      } as typeof original;
+    });
+    await page.goto("/design/aara-lounge-sofa/sofas-1");
+    await page.getByRole("button", { name: "360°", exact: true }).click();
+    await expect(
+      page.getByText("3D is unavailable on this device."),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "View image 1", exact: true })
+      .click();
+    await expect(
+      page.getByRole("button", { name: "Zoom image", exact: true }),
+    ).toBeVisible();
   });
-  console.log(
-    `${isMobile ? "Mobile" : "Desktop"} 3D inventory: ${inventory.filter((i) => i.result.startsWith("generic")).length} generic demos verified, ${inventory.filter((i) => i.result.startsWith("device")).length} device fallbacks, ${inventory.filter((i) => i.result === "gallery-only").length} gallery-only; zero accurate product models`,
-  );
-  // Deliberately remove WebGL, rather than relying on a machine that lacks it.
-  await page.addInitScript(() => {
-    const original = HTMLCanvasElement.prototype.getContext;
-    HTMLCanvasElement.prototype.getContext = function (
-      this: HTMLCanvasElement,
-      type: string,
-      ...args: unknown[]
-    ) {
-      if (type.includes("webgl")) return null;
-      return Reflect.apply(original, this, [type, ...args]);
-    } as typeof original;
-  });
-  await page.goto("/design/aara-lounge-sofa/sofas-1");
-  await page.getByRole("button", { name: "360°", exact: true }).click();
-  await expect(
-    page.getByText("3D is unavailable on this device."),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "View image 1", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Zoom image", exact: true }),
-  ).toBeVisible();
-});
+}

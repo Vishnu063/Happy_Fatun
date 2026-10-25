@@ -132,6 +132,34 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
       .getByRole("status")
       .filter({ hasText: "This quote is below the minimum margin." }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "leads", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search leads" }).fill(reference);
+  const lead = page.locator(".lead").filter({ hasText: reference });
+  await lead.locator("summary").click();
+  await lead
+    .getByRole("combobox", { name: "Lead stage", exact: true })
+    .selectOption("Quote Sent");
+  await lead
+    .getByLabel("Private follow-up notes", { exact: true })
+    .fill("Discuss preferred wood finish.");
+  await lead.getByLabel("Follow-up date", { exact: true }).fill("2030-02-20");
+  await lead
+    .getByRole("button", { name: "Save lead follow-up", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Lead follow-up saved." }),
+  ).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "Lead stage filter", exact: true })
+    .selectOption("Quote Sent");
+  await expect(page.locator(".lead")).toHaveCount(1);
+  await page.locator(".lead summary").click();
+  await expect(
+    page.getByLabel("Private follow-up notes", { exact: true }),
+  ).toHaveValue("Discuss preferred wood finish.");
+  await expect(page.getByLabel("Follow-up date", { exact: true })).toHaveValue(
+    "2030-02-20",
+  );
   await page.getByRole("button", { name: "products", exact: true }).click();
   await page
     .getByRole("button", { name: "Edit Aara lounge sofa", exact: true })

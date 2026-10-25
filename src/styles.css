@@ -1583,3 +1583,60 @@ th {
     height: 100px;
   }
 }
+.lead-totals {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin: 20px 0;
+}
+.lead-totals > div {
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  padding: 15px;
+}
+.lead-totals strong {
+  font:
+    30px Georgia,
+    serif;
+}
+.lead-totals span,
+.source-totals {
+  font-size: 12px;
+}
+.source-totals {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.business-editor {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 35px;
+  margin-bottom: 35px;
+}
+.contact-details > div {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.contact-details dt {
+  font-size: 11px;
+}
+.whatsapp {
+  margin-top: 12px;
+}
+.contact .actions {
+  margin: 30px 0;
+}
+@media (max-width: 650px) {
+  .lead-totals {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .lead-totals > div {
+    padding: 12px;
+  }
+  .lead-totals span {
+    font-size: 10px;
+  }
+}

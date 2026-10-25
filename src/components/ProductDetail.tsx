@@ -11,14 +11,17 @@ import {
 import { api, send, money, type Product } from "../lib/api";
 import ProductCard from "./ProductCard";
 import FurnitureImage from "./FurnitureImage";
+import { captureSource, whatsappURL, type Business } from "../lib/contact";
 import type { GalleryImage } from "./ImageManager";
 const Viewer = lazy(() => import("./Viewer"));
 export default function ProductDetail({
   product: p,
   related,
+  business,
 }: {
   product: Product;
   related: Product[];
+  business?: Business | null;
 }) {
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   useEffect(() => {
@@ -67,6 +70,7 @@ export default function ProductDetail({
             area: form.get("area"),
             consent: form.get("consent") === "on",
             website: form.get("website") || "",
+            source: captureSource(),
           }),
         ),
       );
@@ -272,8 +276,21 @@ export default function ProductDetail({
               document.getElementById("length")?.focus({ preventScroll: true });
             }}
           >
-            Make it yours <ArrowRight size={18} />
+            Customize & request quote <ArrowRight size={18} />
           </a>
+          {whatsappURL(business?.whatsapp || null) && (
+            <a
+              className="btn secondary whatsapp"
+              href={whatsappURL(
+                business?.whatsapp || null,
+                `Hello Aaranya Living, I'd like to discuss ${p.name}.`,
+              )!}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Discuss this design on WhatsApp
+            </a>
+          )}
         </section>
       </div>
       <form id="customize" className="quote-form" onSubmit={submit}>

@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { api, send, money, type Product, type Category } from "../lib/api";
 import ImageManager from "./ImageManager";
+import LeadPanel from "./LeadPanel";
+import BusinessEditor from "./BusinessEditor";
 type Quote = {
   id: string;
   reference: string;
@@ -24,6 +26,9 @@ type Quote = {
   email_status: string;
   email_attempts: number;
   created_at: string;
+  source: string;
+  owner_notes: string;
+  follow_up_date: string | null;
   configuration: {
     length: number;
     width: number;
@@ -236,6 +241,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
       <div className="category-tabs" aria-label="Studio sections">
         {[
           "inquiries",
+          "leads",
           "products",
           "categories",
           "price history",
@@ -271,6 +277,18 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
         </button>
       ) : (
         <>
+          {tab === "leads" && (
+            <LeadPanel
+              leads={data.quotes}
+              busy={busy}
+              save={(id, body) =>
+                action(
+                  () => api(`/admin/leads/${id}`, send("PUT", body)),
+                  "Lead follow-up saved.",
+                )
+              }
+            />
+          )}
           {tab === "inquiries" && (
             <>
               <div className="filters">
@@ -552,6 +570,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
           )}
           {tab === "settings" && (
             <>
+              <BusinessEditor onSaved={onChange} />
               <h2>Quote guardrails</h2>
               <form
                 className="settings-form"

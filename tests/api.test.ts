@@ -513,3 +513,117 @@ describe("owner image storage and replacement", () => {
     expect(bucket.objects.size).toBe(0);
   });
 });
+
+describe("lead follow-ups and configurable contact", () => {
+  it("stores source and private follow-up on the same quotation without losing cost/configuration", async () => {
+    const r = await request("/quotes", "POST", {
+      ...quote(),
+      source: "google",
+    });
+    expect(r.status).toBe(201);
+    await login();
+    const row = db.db.prepare("SELECT * FROM quotes").get()!;
+    await request(
+      `/admin/quotes/${row.id}`,
+      "PUT",
+      { status: "Quoted", internal_cost: 800000, final_price: 1000000 },
+      true,
+    );
+    expect(
+      (
+        await request(
+          `/admin/leads/${row.id}`,
+          "PUT",
+          {
+            stage: "Won",
+            owner_notes: "Call after reviewing wood samples.",
+            follow_up_date: "2030-02-20",
+          },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    const saved = db.db.prepare("SELECT * FROM quotes").get()!;
+    expect(saved).toMatchObject({
+      source: "google",
+      status: "Confirmed",
+      owner_notes: "Call after reviewing wood samples.",
+      follow_up_date: "2030-02-20",
+      internal_cost: 800000,
+      final_price: 1000000,
+    });
+    expect(saved.configuration).toBe(row.configuration);
+    expect(db.db.prepare("SELECT count(*) n FROM quotes").get()?.n).toBe(1);
+    const publicBody = await (await request("/catalog")).text();
+    expect(publicBody).not.toContain("Call after");
+    expect(publicBody).not.toContain("owner_notes");
+    expect((await request("/leads")).status).toBe(404);
+  });
+  it("protects lead changes and validates follow-up dates and acquisition sources", async () => {
+    await request("/quotes", "POST", quote());
+    const row = db.db.prepare("SELECT id FROM quotes").get()!;
+    const body = {
+      stage: "Contacted",
+      owner_notes: "Private",
+      follow_up_date: "2030-02-31",
+    };
+    expect((await request(`/admin/leads/${row.id}`, "PUT", body)).status).toBe(
+      401,
+    );
+    await login();
+    expect(
+      (await request(`/admin/leads/${row.id}`, "PUT", body, true)).status,
+    ).toBe(400);
+    expect(
+      (
+        await request("/quotes", "POST", {
+          ...quote(),
+          source: "unapproved-source",
+        })
+      ).status,
+    ).toBe(400);
+    db.db.prepare("UPDATE quotes SET status='Manufacturing'").run();
+    await request(
+      `/admin/leads/${row.id}`,
+      "PUT",
+      { ...body, stage: "Won", follow_up_date: null },
+      true,
+    );
+    expect(db.db.prepare("SELECT status FROM quotes").get()?.status).toBe(
+      "Manufacturing",
+    );
+  });
+  it("publishes only configured business contacts and allows secure owner overrides", async () => {
+    env.OWNER_EMAIL = "private-owner@example.test";
+    env.BUSINESS_EMAIL = "public@example.test";
+    expect((await request("/admin/business")).status).toBe(401);
+    expect((await request("/admin/business", "PUT", {})).status).toBe(401);
+    await login();
+    const business = {
+      phone: "+91 9000000001",
+      email: "",
+      whatsapp: "+919000000001",
+      address: "",
+      service_area: "Owner-confirmed test locality",
+      summary: "Test profile only.",
+    };
+    expect(
+      (await request("/admin/business", "PUT", business, true)).status,
+    ).toBe(200);
+    const published = await (await request("/business")).json<any>();
+    expect(published.phone).toBe(business.phone);
+    expect(published.email).toBeNull();
+    expect(JSON.stringify(published)).not.toContain(env.OWNER_EMAIL);
+    expect(published.address).toBeNull();
+    expect(
+      (
+        await request(
+          "/admin/business",
+          "PUT",
+          { ...business, whatsapp: "not-a-number" },
+          true,
+        )
+      ).status,
+    ).toBe(400);
+  });
+});

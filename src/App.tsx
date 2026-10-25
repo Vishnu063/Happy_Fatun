@@ -14,9 +14,12 @@ import { api, type Category, type Product } from "./lib/api";
 import ProductDetail from "./components/ProductDetail";
 import ProductCard from "./components/ProductCard";
 import BrandMark from "./components/BrandMark";
+import Contact from "./components/Contact";
+import { captureSource, type Business } from "./lib/contact";
 const Admin = lazy(() => import("./components/Admin"));
 export default function App() {
   const [route, setRoute] = useState(location.hash.slice(1) || "/");
+  const [business, setBusiness] = useState<Business | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState("");
@@ -29,7 +32,8 @@ export default function App() {
   const [menu, setMenu] = useState(false);
   const load = () =>
     api<{ products: Product[]; categories: Category[] }>("/catalog")
-      .then((data) => {
+      .then(async (data) => {
+        setBusiness(await api<Business>("/business"));
         setProducts(data.products);
         setCategories(data.categories);
         setError("");
@@ -40,6 +44,7 @@ export default function App() {
         setLoaded(true);
       });
   useEffect(() => {
+    captureSource();
     void load();
     const change = () => {
       setRoute(location.hash.slice(1) || "/");
@@ -110,6 +115,7 @@ export default function App() {
         <nav aria-label="Main navigation" className={menu ? "nav open" : "nav"}>
           <button onClick={() => browse()}>Explore furniture</button>
           <a href="#/about">Our approach</a>
+          <a href="#/contact">Contact</a>
           <a href="#/admin">
             Owner studio <ArrowUpRight size={14} />
           </a>
@@ -132,6 +138,8 @@ export default function App() {
           >
             <Admin onChange={load} />
           </Suspense>
+        ) : route === "/contact" ? (
+          <Contact business={business} />
         ) : route === "/about" ? (
           <section className="container prose">
             <p className="eyebrow">THE AARANYA LIVING APPROACH</p>
@@ -166,6 +174,7 @@ export default function App() {
           <ProductDetail
             key={selected.id}
             product={selected}
+            business={business}
             related={products
               .filter(
                 (p) =>
@@ -391,6 +400,7 @@ export default function App() {
         <p>Where Nature Meets Craftsmanship.</p>
         <div>
           <a href="#/about">How it works</a>
+          <a href="#/contact">Contact</a>
           <a href="#/admin">Owner studio</a>
         </div>
         <small>

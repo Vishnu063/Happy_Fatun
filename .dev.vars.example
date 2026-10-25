@@ -12,3 +12,8 @@ EMAIL_FROM=
 # Optional public contact shown only after quote submission.
 BUSINESS_EMAIL=
 BUSINESS_PHONE=
+# Optional public profile defaults; owner can override in studio Settings.
+BUSINESS_WHATSAPP=
+BUSINESS_ADDRESS=
+BUSINESS_SERVICE_AREA=
+BUSINESS_SUMMARY=

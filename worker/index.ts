@@ -11,6 +11,8 @@ import {
   SESSION_MS,
 } from "./auth";
 export { passwordHash } from "./crypto";
+import { publicBusiness, registerLeads } from "./leads";
+import { leadSources } from "../shared/leads";
 import { registerMedia, isImageUpload, MAX_IMAGE_BYTES } from "./media";
 export type Env = {
   DB: D1Database;
@@ -24,6 +26,10 @@ export type Env = {
   RESEND_API_KEY?: string;
   BUSINESS_EMAIL?: string;
   BUSINESS_PHONE?: string;
+  BUSINESS_WHATSAPP?: string;
+  BUSINESS_ADDRESS?: string;
+  BUSINESS_SERVICE_AREA?: string;
+  BUSINESS_SUMMARY?: string;
   PRODUCT_IMAGES?: R2Bucket;
 };
 const app = new Hono<{ Bindings: Env; Variables: { session: string } }>();
@@ -211,6 +217,7 @@ const quoteInput = z
     area: z.string().trim().min(2).max(200),
     consent: z.literal(true),
     website: z.string().max(0),
+    source: z.enum(leadSources).default("direct"),
   })
   .strict();
 export async function notify(env: Env, id: string) {
@@ -293,10 +300,11 @@ app.post("/api/quotes", async (c) => {
     !(decoded.colors as string[]).includes(input.configuration.color)
   )
     return c.json({ error: "Choose a listed material and color." }, 400);
+  const business = await publicBusiness(c.env);
   const id = crypto.randomUUID();
   const reference = `AL-${id.toUpperCase()}`;
   await c.env.DB.prepare(
-    "INSERT INTO quotes (id,reference,product_id,product_snapshot,configuration,name,email,phone,area,consent) VALUES (?,?,?,?,?,?,?,?,?,1)",
+    "INSERT INTO quotes (id,reference,product_id,product_snapshot,configuration,name,email,phone,area,consent,source) VALUES (?,?,?,?,?,?,?,?,?,1,?)",
   )
     .bind(
       id,
@@ -308,6 +316,7 @@ app.post("/api/quotes", async (c) => {
       input.email,
       input.phone,
       input.area,
+      input.source,
     )
     .run();
   // Persistence succeeds before attempting email. Email errors never turn a saved quote into a failed submission.
@@ -320,8 +329,8 @@ app.post("/api/quotes", async (c) => {
     {
       reference,
       contact: {
-        email: c.env.BUSINESS_EMAIL || null,
-        phone: c.env.BUSINESS_PHONE || null,
+        email: business.email,
+        phone: business.phone,
       },
     },
     201,
@@ -590,6 +599,7 @@ app.post("/api/admin/quotes/:id/retry", async (c) => {
   return c.json({ ok: true });
 });
 registerMedia(app);
+registerLeads(app);
 app.get("/api/health", (c) => c.json({ ok: true }));
 app.all("/api/*", (c) => c.json({ error: "Endpoint not found." }, 404));
 export default app;

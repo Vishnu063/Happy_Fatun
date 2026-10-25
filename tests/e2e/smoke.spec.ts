@@ -17,6 +17,23 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await expect(
     page.getByRole("link", { name: "Aaranya Living home", exact: true }),
   ).toBeVisible();
+  const timing = await page.evaluate(() => {
+    const navigation = performance.getEntriesByType(
+      "navigation",
+    )[0] as PerformanceNavigationTiming;
+    return {
+      responseStartMs: navigation.responseStart,
+      domContentLoadedMs: navigation.domContentLoadedEventEnd,
+      loadMs: navigation.loadEventEnd,
+      firstContentfulPaintMs:
+        performance.getEntriesByName("first-contentful-paint")[0]?.startTime ??
+        null,
+    };
+  });
+  await test.info().attach("local-navigation-performance", {
+    body: JSON.stringify(timing),
+    contentType: "application/json",
+  });
   await page.screenshot({
     path: `test-results/${isMobile ? "mobile" : "desktop"}-home.png`,
     fullPage: true,
@@ -51,6 +68,31 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   );
   expect(serverDocument.status()).toBe(200);
   expect(await serverDocument.text()).toContain("<h1>Aara lounge sofa</h1>");
+  const zoomButton = page.getByRole("button", {
+    name: "Zoom image",
+    exact: true,
+  });
+  await zoomButton.click();
+  const zoomDialog = page.getByRole("dialog", {
+    name: "Aara lounge sofa",
+    exact: true,
+  });
+  await expect(zoomDialog).toBeVisible();
+  const zoomAccessibility = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(zoomAccessibility.violations).toEqual([]);
+  await zoomDialog
+    .getByRole("button", { name: "Zoom image in", exact: true })
+    .click();
+  await expect(zoomDialog.getByLabel("Image magnification")).toHaveText("150%");
+  await zoomDialog
+    .getByRole("button", { name: "Reset zoom", exact: true })
+    .click();
+  await expect(zoomDialog.getByLabel("Image magnification")).toHaveText("100%");
+  await page.keyboard.press("Escape");
+  await expect(zoomDialog).not.toBeVisible();
+  await expect(zoomButton).toBeFocused();
   await page.getByRole("button", { name: "Next image", exact: true }).click();
   await expect(page.locator(".gallery-count")).toHaveText("2 / 3");
   await page.locator(".gallery").focus();
@@ -103,6 +145,22 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await page.getByLabel("Email", { exact: true }).fill("smoke@example.test");
   await page.getByLabel("Delivery area", { exact: true }).fill("Test locality");
   await page.getByRole("checkbox").check();
+  let persistedReference = "";
+  const submissionKeys: string[] = [];
+  await page.route("**/api/quotes", async (route) => {
+    submissionKeys.push(route.request().postDataJSON().submission_key);
+    const response = await route.fetch();
+    if (!persistedReference) {
+      persistedReference = (await response.json()).reference;
+      await route.abort("failed");
+    } else await route.fulfill({ response });
+  });
+  await page
+    .getByRole("button", { name: "Request a personal quotation" })
+    .click();
+  await expect(page.getByRole("alert")).toContainText(
+    "We couldn't confirm the response.",
+  );
   await page
     .getByRole("button", { name: "Request a personal quotation" })
     .click();
@@ -111,6 +169,10 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   ).toBeVisible();
   const reference = await page.locator(".reference strong").innerText();
   expect(reference).toMatch(/^AL-/);
+  expect(reference).toBe(persistedReference);
+  expect(submissionKeys).toHaveLength(2);
+  expect(submissionKeys[0]).toBeTruthy();
+  expect(submissionKeys[0]).toBe(submissionKeys[1]);
   const anonymous = await page.request.put("/api/admin/products/sofas-1", {
     headers: { Origin: "http://127.0.0.1:8790" },
     data: { price: 1 },
@@ -238,6 +300,10 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await expect(
     page.getByRole("link", { name: "Chat on WhatsApp", exact: true }),
   ).toHaveAttribute("href", /^https:\/\/wa.me\/919000000001\?text=/);
+  await page.goto("/design/mysa-curved-sofa/sofas-2");
+  await expect(
+    page.getByRole("combobox", { name: "Material", exact: true }),
+  ).toHaveValue("Walnut");
   await page.goto("/design/aara-lounge-sofa/sofas-1");
   expect(errors).toEqual([]);
   await page.screenshot({

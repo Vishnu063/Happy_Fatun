@@ -658,3 +658,81 @@ describe("gallery concurrency protection", () => {
     expect(saved.price).toBe(500000);
   });
 });
+
+describe("quote submission retry protection", () => {
+  it("returns the original receipt on sequential retries without notifying twice", async () => {
+    env.EMAIL_MODE = "resend";
+    env.OWNER_EMAIL = "owner@example.test";
+    env.EMAIL_FROM = "studio@example.test";
+    env.RESEND_API_KEY = "test-only";
+    const mail = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    const payload = { ...quote(), submission_key: crypto.randomUUID() };
+    const first = await request("/quotes", "POST", payload);
+    expect(first.status).toBe(201);
+    const receipt = await first.json<any>();
+    const retry = await request("/quotes", "POST", payload);
+    expect(retry.status).toBe(200);
+    expect(await retry.json<any>()).toEqual(receipt);
+    expect(db.db.prepare("SELECT count(*) n FROM quotes").get()?.n).toBe(1);
+    expect(mail).toHaveBeenCalledTimes(1);
+    await login();
+    const admin = await (
+      await request("/admin/data", "GET", undefined, true)
+    ).json<any>();
+    expect(admin.quotes[0]).not.toHaveProperty("submission_key");
+    expect(admin.quotes[0]).not.toHaveProperty("request_hash");
+  });
+  it("deduplicates concurrent requests atomically", async () => {
+    const payload = { ...quote(), submission_key: crypto.randomUUID() };
+    const responses = await Promise.all([
+      request("/quotes", "POST", payload),
+      request("/quotes", "POST", payload),
+    ]);
+    expect(responses.map((r) => r.status).sort()).toEqual([200, 201]);
+    const bodies = await Promise.all(responses.map((r) => r.json<any>()));
+    expect(bodies[0].reference).toBe(bodies[1].reference);
+    expect(db.db.prepare("SELECT count(*) n FROM quotes").get()?.n).toBe(1);
+  });
+  it("rejects changed payload reuse, while distinct submission keys allow distinct inquiries", async () => {
+    const payload = { ...quote(), submission_key: crypto.randomUUID() };
+    await request("/quotes", "POST", payload);
+    expect(
+      (
+        await request("/quotes", "POST", {
+          ...payload,
+          area: "Changed locality",
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await request("/quotes", "POST", {
+          ...payload,
+          submission_key: "invalid",
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request("/quotes", "POST", {
+          ...payload,
+          submission_key: crypto.randomUUID(),
+        })
+      ).status,
+    ).toBe(201);
+    expect(db.db.prepare("SELECT count(*) n FROM quotes").get()?.n).toBe(2);
+  });
+  it("returns a saved receipt after product archival and secret rotation", async () => {
+    const payload = { ...quote(), submission_key: crypto.randomUUID() };
+    const first = await (await request("/quotes", "POST", payload)).json<any>();
+    db.db
+      .prepare("UPDATE products SET status='archived' WHERE id='sofas-1'")
+      .run();
+    env.SESSION_SECRET = "rotated-test-secret-more-than-32-characters";
+    const retry = await request("/quotes", "POST", payload);
+    expect(retry.status).toBe(200);
+    expect((await retry.json<any>()).reference).toBe(first.reference);
+  });
+});

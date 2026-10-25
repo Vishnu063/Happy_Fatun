@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { api, send, money, type Product } from "../lib/api";
 import ProductCard from "./ProductCard";
+import ImageZoom from "./ImageZoom";
 import FurnitureImage from "./FurnitureImage";
 import { captureSource, whatsappURL, type Business } from "../lib/contact";
 import type { GalleryImage } from "./ImageManager";
@@ -30,8 +31,10 @@ export default function ProductDetail({
       .catch(() => setGallery([]));
   }, [p.id, p.images.join("|")]);
   const [image, setImage] = useState(0);
+  const [zoom, setZoom] = useState(false);
   const [three, setThree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState("");
   const [result, setResult] = useState<{
     reference: string;
@@ -42,7 +45,7 @@ export default function ProductDetail({
     length: p.length,
     width: p.width,
     height: p.height,
-    material: p.materials[0],
+    material: p.materials.includes(p.material) ? p.material : p.materials[0],
     color: p.colors[0],
     notes: "",
   });
@@ -71,12 +74,17 @@ export default function ProductDetail({
             consent: form.get("consent") === "on",
             website: form.get("website") || "",
             source: captureSource(),
+            submission_key: submissionKey,
           }),
         ),
       );
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err) {
-      setError((err as Error).message);
+      setError(
+        err instanceof TypeError
+          ? "We couldn't confirm the response. Your request may already be saved; retry this form to recover its reference."
+          : (err as Error).message,
+      );
     } finally {
       setSubmitting(false);
     }
@@ -122,6 +130,15 @@ export default function ProductDetail({
     );
   return (
     <div className="container detail">
+      {zoom && (
+        <ImageZoom
+          src={p.images[image]}
+          alt={gallery[image]?.alt || `${p.name} — view ${image + 1}`}
+          name={p.name}
+          illustrative={illustrative}
+          onClose={() => setZoom(false)}
+        />
+      )}
       <a className="back" href="/">
         <ArrowLeft size={16} /> Back to the collection
       </a>
@@ -182,6 +199,13 @@ export default function ProductDetail({
                   onClick={() => move(1)}
                 >
                   <ChevronRight />
+                </button>
+                <button
+                  type="button"
+                  className="gallery-zoom btn secondary small"
+                  onClick={() => setZoom(true)}
+                >
+                  Zoom image
                 </button>
                 <span className="gallery-count" aria-live="polite">
                   {image + 1} / {p.images.length}

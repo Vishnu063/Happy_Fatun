@@ -79,3 +79,19 @@ describe("public SEO documents and descriptive URLs", () => {
     expect(html).toContain("\\u003c/script>");
   });
 });
+
+describe("category SEO", () => {
+  it("serves descriptive category metadata and redirects stale category slugs", async () => {
+    const response = await get("/collections/sofas/sofas");
+    expect(response.status).toBe(200);
+    const html = await response.text();
+    expect(html).toContain(
+      "<title>Sofas design concepts for Pune projects | Aaranya Living</title>",
+    );
+    expect(html).toContain(
+      `rel="canonical" href="${origin}/collections/sofas/sofas"`,
+    );
+    expect(html).toContain("<h1>Sofas design concepts</h1>");
+    expect((await get("/collections/old/sofas")).status).toBe(301);
+  });
+});

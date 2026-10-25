@@ -220,6 +220,7 @@ const quoteInput = z
     consent: z.literal(true),
     website: z.string().max(0),
     source: z.enum(leadSources).default("direct"),
+    submission_key: z.string().uuid().optional(),
   })
   .strict();
 export async function notify(env: Env, id: string) {
@@ -269,6 +270,15 @@ export async function notify(env: Env, id: string) {
     .bind(status, id)
     .run();
 }
+function quoteReceipt(
+  reference: string,
+  business: Awaited<ReturnType<typeof publicBusiness>>,
+) {
+  return {
+    reference,
+    contact: { email: business.email, phone: business.phone },
+  };
+}
 app.post("/api/quotes", async (c) => {
   if (!configuredSecret(c.env))
     return c.json(
@@ -286,6 +296,36 @@ app.post("/api/quotes", async (c) => {
   );
   if (await limited(c.env.DB, key, 10, 3600))
     return c.json({ error: "Too many requests. Please try again later." }, 429);
+  const { submission_key: clientKey, ...requestData } = input;
+  const submissionKey = clientKey
+    ? await hmac("quote-submission", clientKey)
+    : null;
+  const requestHash = clientKey
+    ? await hmac(JSON.stringify(requestData), clientKey)
+    : null;
+  const findSubmission = () =>
+    c.env.DB.prepare(
+      "SELECT reference,request_hash FROM quotes WHERE submission_key=?",
+    )
+      .bind(submissionKey)
+      .first<{ reference: string; request_hash: string | null }>();
+  if (submissionKey) {
+    const prior = await findSubmission();
+    if (prior) {
+      if (prior.request_hash !== requestHash)
+        return c.json(
+          {
+            error:
+              "This submission was already used for different details. Refresh before starting a new inquiry.",
+          },
+          409,
+        );
+      return c.json(
+        quoteReceipt(prior.reference, await publicBusiness(c.env)),
+        200,
+      );
+    }
+  }
   const product = await c.env.DB.prepare(
     `SELECT ${publicColumns} FROM products WHERE id=? AND status != 'archived'`,
   )
@@ -305,8 +345,8 @@ app.post("/api/quotes", async (c) => {
   const business = await publicBusiness(c.env);
   const id = crypto.randomUUID();
   const reference = `AL-${id.toUpperCase()}`;
-  await c.env.DB.prepare(
-    "INSERT INTO quotes (id,reference,product_id,product_snapshot,configuration,name,email,phone,area,consent,source) VALUES (?,?,?,?,?,?,?,?,?,1,?)",
+  const inserted = await c.env.DB.prepare(
+    "INSERT INTO quotes (id,reference,product_id,product_snapshot,configuration,name,email,phone,area,consent,source,submission_key,request_hash) VALUES (?,?,?,?,?,?,?,?,?,1,?,?,?) ON CONFLICT(submission_key) DO NOTHING RETURNING id",
   )
     .bind(
       id,
@@ -319,24 +359,29 @@ app.post("/api/quotes", async (c) => {
       input.phone,
       input.area,
       input.source,
+      submissionKey,
+      requestHash,
     )
-    .run();
+    .first<{ id: string }>();
+  if (!inserted) {
+    const prior = await findSubmission();
+    if (!prior || prior.request_hash !== requestHash)
+      return c.json(
+        {
+          error:
+            "This submission was already used for different details. Refresh before starting a new inquiry.",
+        },
+        409,
+      );
+    return c.json(quoteReceipt(prior.reference, business), 200);
+  }
   // Persistence succeeds before attempting email. Email errors never turn a saved quote into a failed submission.
   try {
     await notify(c.env, id);
   } catch {
     console.error("Notification status could not be updated");
   }
-  return c.json(
-    {
-      reference,
-      contact: {
-        email: business.email,
-        phone: business.phone,
-      },
-    },
-    201,
-  );
+  return c.json(quoteReceipt(reference, business), 201);
 });
 const asset = z
   .string()
@@ -384,11 +429,13 @@ app.get("/api/admin/data", async (c) => {
   );
   return c.json({
     products: products.results.map(decode),
-    quotes: quotes.results.map((q) => ({
-      ...q,
-      configuration: JSON.parse(String(q.configuration)),
-      product_snapshot: JSON.parse(String(q.product_snapshot)),
-    })),
+    quotes: quotes.results.map(
+      ({ submission_key: _key, request_hash: _hash, ...q }) => ({
+        ...q,
+        configuration: JSON.parse(String(q.configuration)),
+        product_snapshot: JSON.parse(String(q.product_snapshot)),
+      }),
+    ),
     audit: audit.results,
     categories: categories.results,
     settings: settings.results[0],

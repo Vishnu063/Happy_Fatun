@@ -32,3 +32,35 @@ Rechecked the full GitHub brief before final verification; the four Issue #1 com
 ## Continued publication checkpoint
 
 After the user continued, reread Issue #1 and PR #2. A new owner comment at `2026-10-25T14:53:03Z` ([source](https://github.com/Vishnu063/Happy_Fatun/pull/2#issuecomment-6399139542)) acknowledged the security follow-up and directed continued work on the same four areas, with no merge/deploy/paid service activity. It added no conflicting requirements. Automatic approval review was available again. Restarted the standard development server and verified HTTP 200 for home, catalog, descriptive product HTML, sitemap and robots; verified the product summary/canonical in HTML and absence of internal cost fields in the public catalog. This supersedes the earlier blocked restart, without implying production deployment.
+
+## Final completion request — phase 1: security
+
+Read the user's eight-phase pasted request completely, then reread Issue #1/all comments, repository issues and PR #2 conversation/reviews/inline comments before changes. GitHub head was `380f997`, both CI checks successful; no new owner requirements beyond the recorded comments. Existing session revocation, one-hour expiry, origin guards, owner authorization and upload validation were retained. Final audit found that joined CLI aliases and repeated environment selections were not explicitly rejected by the deploy wrapper. Tightened its argument allowlist and inherited-environment handling; a terminated deployment child now exits with failure. No deployment was executed.
+
+## Final completion request — phase 2: customer experience
+
+GitHub rechecked before this phase: Issue #1, its four comments and the two owner PR instructions were unchanged; PR head remained `380f997` with successful CI. Reused the catalog/search/filter/customization/navigation components. Added the missing customer gallery zoom: native modal, labeled zoom/reset controls, scrollable detail view, Escape dismissal and focus restoration. Existing material/color choices, dimensions, configured contacts and quote flow were retained. Desktop/mobile regression assertions exercise magnification, reset and keyboard dismissal in the final suite.
+
+## Final completion request — phase 3: presentation
+
+GitHub checkpoint confirmed unchanged instructions. Retained the lawful original studio/room/angle SVG placeholders and their visible illustrative labels; no copyrighted photos or accurate manufactured-product geometry were invented. Corrected customization to start with the listed primary material when it is available among that product's options, rather than always the first array item. Final browser tests check a Walnut design's default selection. Genuine product-specific 3D models and manufacturer-approved room photography remain owner-supplied prerequisites, not a blocker to the approved placeholder-first workflow.
+
+## Final completion request — phase 4: owner dashboard
+
+GitHub rechecked with unchanged instructions. Reused the existing CRUD, image manager, pricing/audit, quote, lead and contact editors. Expanded the direct API authorization/origin matrix to every owner mutation family, plus private dashboard/business/gallery reads, rather than adding another admin implementation. Existing API and desktop/mobile tests verify persistence for products, prices, categories, image replacement, quote records, lead notes/dates and contact settings; all are included in the final verification run.
+
+## Final completion request — phase 5: leads, retries and email
+
+GitHub checkpoint found no changed instructions. Extended the existing quote insertion with a unique, opaque submission digest and request fingerprint. The browser keeps a random submission key for that form's lifetime. Identical sequential/concurrent retries return the original reference without creating another quote or notification; reuse for different details is rejected. Distinct keys still allow legitimate separate inquiries, and legacy API clients without a key retain normal rate limiting. Digests are excluded from owner API payloads. Focused tests cover sequential/concurrent retries, changed payloads, notification count and receipt recovery after archive/secret rotation. Final browser tests deliberately persist the first request and interrupt its response, then verify retry recovers the same reference. Existing private lead persistence and email-failure retention remain in the full suite. No real email or unsolicited message was sent.
+
+## Final completion request — phase 6: SEO, accessibility and performance
+
+GitHub rechecked; instructions unchanged. Retained the existing metadata/canonical/sitemap/robots implementation and added a direct category-page metadata/redirect regression. Existing WebP conversion, maximum image dimensions, lazy gallery assets and deferred admin/3D chunks remain in use. Final browser verification audits the new zoom dialog as well as catalog/dashboard, and records local navigation/paint timings as artifacts without claiming production Core Web Vitals. No fake ratings, availability, service areas or testimonials were added. A queued native-dialog close event is ignored if development Strict Mode has already reopened it.
+
+## Final completion request — phase 7: complete verification
+
+GitHub rechecked before the run; instructions unchanged. Full checks passed: formatting, non-deploying production guard, TypeScript/Vite build, **39 API/security/SEO tests** with no skips, **four desktop/mobile browser tests**, and catalog/dashboard/zoom WCAG-tagged accessibility audits. Dependency audit: zero vulnerabilities. Applied the local retry migration and repeated the migration command: none pending. After a post-build restart, both standard-server profiles decoded 28 images and captured home/150% zoom screenshots. Local unthrottled paint/load observations and exact bundle sizes are recorded in VALIDATION.md; no production performance claim is made.
+
+## Final completion request — phase 8: GitHub handoff
+
+The pre-publication GitHub checkpoint found no changed Issue #1, PR #2 or inline instructions; prior remote head `380f997` still had successful CI. Updating README, security notes and verification evidence, then pushing only to the existing PR branch. PR #2 must stay open/unmerged and the new commit's CI must be checked separately. Production account/storage/database setup, real credentials/email, real product assets and owner business details remain explicit prerequisites. No deployment, merge, EC2, paid service purchase, production secret entry or unsolicited outreach is authorized or performed.

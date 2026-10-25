@@ -9,9 +9,9 @@ export default function Viewer({
   color: string;
 }) {
   const mount = useRef<HTMLDivElement>(null);
-  const commands = useRef<(action: "left" | "right" | "in" | "out") => void>(
-    () => {},
-  );
+  const commands = useRef<
+    (action: "left" | "right" | "up" | "down" | "in" | "out" | "reset") => void
+  >(() => {});
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     const target = mount.current;
@@ -39,16 +39,31 @@ export default function Viewer({
       controls.enableDamping = true;
       controls.minDistance = 3;
       controls.maxDistance = 10;
+      controls.minPolarAngle = 0.15;
       controls.maxPolarAngle = Math.PI / 2;
       controls.enablePan = false;
+      controls.update();
+      controls.saveState();
       commands.current = (action) => {
+        if (action === "reset") {
+          controls!.reset();
+          return;
+        }
         const offset = camera.position.clone().sub(controls!.target);
         if (action === "left" || action === "right")
           offset.applyAxisAngle(
             new THREE.Vector3(0, 1, 0),
             action === "left" ? 0.3 : -0.3,
           );
-        else
+        else if (action === "up" || action === "down") {
+          const spherical = new THREE.Spherical().setFromVector3(offset);
+          spherical.phi = THREE.MathUtils.clamp(
+            spherical.phi + (action === "up" ? -0.25 : 0.25),
+            0.15,
+            Math.PI / 2,
+          );
+          offset.setFromSpherical(spherical);
+        } else
           offset.setLength(
             THREE.MathUtils.clamp(
               offset.length() * (action === "in" ? 0.85 : 1.15),
@@ -154,7 +169,8 @@ export default function Viewer({
         }
       });
       renderer?.dispose();
-      target.replaceChildren();
+      // React may reuse this div for its fallback; remove only our own canvas.
+      renderer?.domElement.remove();
     };
   }, [model, color, failed]);
   return (
@@ -199,6 +215,27 @@ export default function Viewer({
               onClick={() => commands.current("out")}
             >
               −
+            </button>
+            <button
+              type="button"
+              aria-label="Rotate model up"
+              onClick={() => commands.current("up")}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              aria-label="Rotate model down"
+              onClick={() => commands.current("down")}
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              aria-label="Reset model view"
+              onClick={() => commands.current("reset")}
+            >
+              Reset
             </button>
           </div>
           <span className="viewer-label">

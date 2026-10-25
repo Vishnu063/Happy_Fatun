@@ -71,7 +71,20 @@ describe("public catalog and private owner boundary", () => {
     expect(r.status).toBe(200);
     const body = await r.json<any>();
     expect(body.products).toHaveLength(24);
-    expect(body.categories).toHaveLength(6);
+    expect(body.categories.map((c: { name: string }) => c.name)).toEqual(
+      expect.arrayContaining([
+        "Tables",
+        "Dining",
+        "Chairs",
+        "Sofas",
+        "Beds",
+        "Wardrobes",
+        "Cupboards",
+        "Desks",
+        "Custom furniture",
+      ]),
+    );
+    expect(body.categories).toHaveLength(9);
     expect(
       body.products.every(
         (p: Record<string, unknown>) =>
@@ -734,5 +747,393 @@ describe("quote submission retry protection", () => {
     const retry = await request("/quotes", "POST", payload);
     expect(retry.status).toBe(200);
     expect((await retry.json<any>()).reference).toBe(first.reference);
+  });
+});
+
+describe("requirements audit catalog and owner controls", () => {
+  it("serves 300 distinct isolated fixture records with safe metadata and leaves production seed content unchanged", async () => {
+    const insert = db.db.prepare(
+      "INSERT INTO products (id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,internal_cost) SELECT ?,?,category_id,description,material,finish,length,width,height,NULL,'concept',images,colors,materials,NULL,0 FROM products WHERE id='sofas-1'",
+    );
+    for (let i = 0; i < 276; i++)
+      insert.run(`audit-fixture-${i}`, `Isolated catalog benchmark ${i}`);
+    const body = await (await request("/catalog")).json<any>();
+    expect(body.products).toHaveLength(300);
+    expect(new Set(body.products.map((p: { id: string }) => p.id)).size).toBe(
+      300,
+    );
+    expect(
+      body.products.every(
+        (p: Record<string, unknown>) => !("internal_cost" in p),
+      ),
+    ).toBe(true);
+  });
+  it("persists owner edits to dimensions, variants, finishes and category, and hides archived products", async () => {
+    await login();
+    const data = await (
+      await request("/admin/data", "GET", undefined, true)
+    ).json<any>();
+    const { id, ...product } = data.products.find(
+      (p: { id: string }) => p.id === "sofas-1",
+    );
+    const edited = {
+      ...product,
+      category_id: "tables",
+      length: 230,
+      width: 100,
+      height: 90,
+      material: "Walnut",
+      finish: "Matte oil",
+      materials: ["Walnut", "Oak"],
+      colors: ["Sand", "Olive"],
+      price: 2500000,
+    };
+    expect((await request(`/admin/products/${id}`, "PUT", edited)).status).toBe(
+      401,
+    );
+    expect(
+      (await request(`/admin/products/${id}`, "PUT", edited, true)).status,
+    ).toBe(200);
+    const updated = (
+      await (await request("/catalog")).json<any>()
+    ).products.find((p: { id: string }) => p.id === id);
+    expect(updated).toMatchObject({
+      category_id: "tables",
+      length: 230,
+      width: 100,
+      height: 90,
+      material: "Walnut",
+      finish: "Matte oil",
+      materials: ["Walnut", "Oak"],
+      colors: ["Sand", "Olive"],
+      price: 2500000,
+    });
+    await request(
+      `/admin/products/${id}`,
+      "PUT",
+      { ...edited, status: "archived" },
+      true,
+    );
+    expect(
+      (await (await request("/catalog")).json<any>()).products.some(
+        (p: { id: string }) => p.id === id,
+      ),
+    ).toBe(false);
+    expect((await request("/quotes", "POST", quote())).status).toBe(404);
+  });
+});
+
+describe("durable image cleanup failures", () => {
+  it("retains failed replacement and product-deletion obligations until owner retry succeeds", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    expect((await request("/admin/media/cleanup")).status).toBe(401);
+    expect((await request("/admin/media/cleanup", "POST", {})).status).toBe(
+      401,
+    );
+    await login();
+    expect(
+      (
+        await request("/admin/media/cleanup", "POST", {}, true, {
+          Origin: "https://untrusted.example",
+        })
+      ).status,
+    ).toBe(403);
+    const first = await (await uploadImage()).json<any>();
+    const remove = vi
+      .spyOn(bucket, "delete")
+      .mockRejectedValue(new Error("isolated storage outage"));
+    expect((await uploadImage(png, {}, "?replace=3")).status).toBe(201);
+    expect(bucket.objects.size).toBe(2);
+    expect((await app.request(origin + first.url, {}, env)).status).toBe(404);
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(1);
+    expect(
+      (await request("/admin/products/sofas-1", "DELETE", undefined, true))
+        .status,
+    ).toBe(200);
+    expect(db.db.prepare("SELECT COUNT(*) n FROM media_objects").get()?.n).toBe(
+      0,
+    );
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(2);
+    expect(
+      (
+        await (
+          await request("/admin/media/cleanup", "POST", {}, true)
+        ).json<any>()
+      ).pending,
+    ).toBe(2);
+    remove.mockRestore();
+    const result = await (
+      await request("/admin/media/cleanup", "POST", {}, true)
+    ).json<any>();
+    expect(result).toEqual({ pending: 0, stale: 0, configured: true });
+    expect(bucket.objects.size).toBe(0);
+    expect(
+      (await request("/admin/media/cleanup", "POST", {}, true)).status,
+    ).toBe(200);
+  });
+  it("recovers interrupted uploads, preserves active and recent objects, and retries a failed upload cleanup", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    await login();
+    const active = await (await uploadImage()).json<any>();
+    for (const [id, age] of [
+      ["stale-stage", "-10 minutes"],
+      ["recent-stage", "-1 minute"],
+    ]) {
+      const key = `products/sofas-1/${id}.png`;
+      await bucket.put(key, png);
+      db.db
+        .prepare(
+          "INSERT INTO media_objects(id,product_id,storage_key,content_type,byte_size,alt,kind,created_at) VALUES (?,'sofas-1',?,'image/png',?,'Staged upload','illustrative',datetime('now',?))",
+        )
+        .run(id, key, png.length, age);
+    }
+    db.db
+      .prepare(
+        "UPDATE media_objects SET created_at=datetime('now','-10 minutes') WHERE id=?",
+      )
+      .run(active.id);
+    const publicData = await (await request("/catalog")).json<any>();
+    expect(
+      Object.keys(
+        publicData.products.find((p: { id: string }) => p.id === "sofas-1")
+          .image_metadata,
+      ),
+    ).toContain(active.url);
+    expect(JSON.stringify(publicData)).not.toContain("stale-stage");
+    expect(JSON.stringify(publicData)).not.toContain("recent-stage");
+    expect(
+      (await request("/admin/media/cleanup", "POST", {}, true)).status,
+    ).toBe(200);
+    expect(bucket.objects.has("products/sofas-1/stale-stage.png")).toBe(false);
+    expect(bucket.objects.has("products/sofas-1/recent-stage.png")).toBe(true);
+    expect((await app.request(origin + active.url, {}, env)).status).toBe(200);
+    vi.spyOn(db, "batch").mockRejectedValueOnce(
+      new Error("isolated persistence failure"),
+    );
+    const remove = vi
+      .spyOn(bucket, "delete")
+      .mockRejectedValue(new Error("isolated storage outage"));
+    expect((await uploadImage()).status).toBe(500);
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(1);
+    remove.mockRestore();
+    await request("/admin/media/cleanup", "POST", {}, true);
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(0);
+    expect(bucket.objects.size).toBe(2);
+  });
+  it("retains staged keys across product deletion and observes their grace period", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    await login();
+    db.db
+      .prepare(
+        "INSERT INTO media_objects(id,product_id,storage_key,content_type,byte_size,alt,kind) VALUES ('inflight','sofas-1','inflight.png','image/png',1,'In flight','illustrative')",
+      )
+      .run();
+    await request("/admin/products/sofas-1", "DELETE", undefined, true);
+    // Simulate an in-flight external write completing after the product transaction.
+    await bucket.put("inflight.png", png);
+    await request("/admin/media/cleanup", "POST", {}, true);
+    expect(bucket.objects.has("inflight.png")).toBe(true);
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(1);
+    db.db
+      .prepare(
+        "UPDATE media_cleanup_queue SET available_at=datetime('now','-1 minute')",
+      )
+      .run();
+    await request("/admin/media/cleanup", "POST", {}, true);
+    expect(bucket.objects.size).toBe(0);
+  });
+});
+
+describe("owner editable search listings and image descriptions", () => {
+  it("validates and persists product/category SEO, retaining optional overrides for legacy edits", async () => {
+    await login();
+    const data = await (
+      await request("/admin/data", "GET", undefined, true)
+    ).json<any>();
+    const { id, ...product } = data.products.find(
+      (p: { id: string }) => p.id === "sofas-1",
+    );
+    const updated = {
+      ...product,
+      seo_title: "Aara sofa design | Aaranya Living",
+      seo_description:
+        "Compare this illustrative sofa design and request a personal quotation.",
+    };
+    expect(
+      (await request("/admin/products/" + id, "PUT", updated)).status,
+    ).toBe(401);
+    expect(
+      (
+        await request(
+          "/admin/products/" + id,
+          "PUT",
+          { ...updated, seo_title: "x".repeat(71) },
+          true,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request(
+          "/admin/products/" + id,
+          "PUT",
+          { ...updated, seo_description: "x".repeat(181) },
+          true,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request("/admin/products/" + id, "PUT", updated, true)).status,
+    ).toBe(200);
+    const {
+      seo_title: _title,
+      seo_description: _description,
+      ...legacy
+    } = updated;
+    await request("/admin/products/" + id, "PUT", legacy, true);
+    expect(
+      db.db.prepare("SELECT seo_title FROM products WHERE id=?").get(id)
+        ?.seo_title,
+    ).toBe(updated.seo_title);
+    expect(
+      (
+        await request(
+          "/admin/categories/sofas",
+          "PUT",
+          {
+            name: "Sofas",
+            seo_title: "Sofa planning",
+            seo_description: "Plan seating for your room.",
+          },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          "/admin/categories/sofas",
+          "PUT",
+          { name: "Sofas", seo_title: "x".repeat(71) },
+          true,
+        )
+      ).status,
+    ).toBe(400);
+    await request("/admin/categories/sofas", "PUT", { name: "Sofas" }, true);
+    const catalog = await (await request("/catalog")).json<any>();
+    expect(
+      catalog.categories.find((c: { id: string }) => c.id === "sofas")
+        .seo_title,
+    ).toBe("Sofa planning");
+    expect(
+      catalog.products.find((p: { id: string }) => p.id === id).seo_description,
+    ).toBe(updated.seo_description);
+    await request(
+      "/admin/products/" + id,
+      "PUT",
+      { ...updated, seo_title: "", seo_description: "" },
+      true,
+    );
+    expect(
+      db.db.prepare("SELECT seo_title FROM products WHERE id=?").get(id)
+        ?.seo_title,
+    ).toBe("");
+  });
+  it("edits an existing placeholder alt without replacing bytes and rejects unapproved references", async () => {
+    const images = JSON.parse(
+      String(
+        db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+          ?.images,
+      ),
+    );
+    const path = "/admin/products/sofas-1/images/text";
+    const body = {
+      url: images[0],
+      alt: "Aara sofa concept on a white studio background",
+    };
+    expect((await request(path, "PUT", body)).status).toBe(401);
+    await login();
+    expect(
+      (
+        await request(path, "PUT", body, true, {
+          Origin: "https://untrusted.example",
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await request(
+          path,
+          "PUT",
+          { ...body, url: "/assets/not-this-gallery.svg" },
+          true,
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await request(path, "PUT", { ...body, alt: "x".repeat(301) }, true))
+        .status,
+    ).toBe(400);
+    expect((await request(path, "PUT", body, true)).status).toBe(200);
+    const gallery = await (
+      await request("/products/sofas-1/images")
+    ).json<any>();
+    expect(gallery.images[0].alt).toBe(body.alt);
+    const catalog = await (await request("/catalog")).json<any>();
+    expect(
+      catalog.products.find((p: { id: string }) => p.id === "sofas-1")
+        .image_metadata[images[0]].alt,
+    ).toBe(body.alt);
+    expect(
+      JSON.parse(
+        String(
+          db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+            ?.images,
+        ),
+      ),
+    ).toEqual(images);
+  });
+});
+
+describe("interrupted image write reconciliation", () => {
+  it("rejects publication if reconciliation retired its staged registry during a delayed object write", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    await login();
+    const original = db.db
+      .prepare("SELECT images FROM products WHERE id='sofas-1'")
+      .get()?.images;
+    vi.spyOn(bucket, "put").mockImplementationOnce(async (key, value) => {
+      db.db
+        .prepare(
+          "UPDATE media_objects SET created_at=datetime('now','-10 minutes')",
+        )
+        .run();
+      await request("/admin/media/cleanup", "POST", {}, true);
+      bucket.objects.set(key, new Uint8Array(value));
+      return { key };
+    });
+    expect((await uploadImage()).status).toBe(409);
+    expect(
+      db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+        ?.images,
+    ).toBe(original);
+    expect(bucket.objects.size).toBe(0);
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(0);
   });
 });

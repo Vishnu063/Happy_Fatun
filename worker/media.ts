@@ -2,6 +2,11 @@ import type { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type { Env } from "./index";
+import {
+  queueRetiredMedia,
+  flushMediaCleanup,
+  mediaCleanupStatus,
+} from "./media-cleanup";
 type App = Hono<{ Bindings: Env; Variables: { session: string } }>;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const isImageUpload = (path: string, method: string) =>
@@ -96,6 +101,11 @@ async function gallery(env: Env, id: string) {
       content_type: string;
       byte_size: number;
     }>();
+  const overrides = await env.DB.prepare(
+    "SELECT url,alt FROM product_image_text WHERE product_id=?",
+  )
+    .bind(id)
+    .all<{ url: string; alt: string }>();
   return {
     status: p.status,
     images: (JSON.parse(p.images) as string[]).map((url, index) => {
@@ -103,6 +113,7 @@ async function gallery(env: Env, id: string) {
       return {
         url,
         alt:
+          overrides.results.find((t) => t.url === url)?.alt ||
           m?.alt ||
           `${p.name} — ${index === 0 ? "studio illustration" : index === 1 ? "room illustration" : `view ${index + 1}`}`,
         kind: m?.kind || (p.status === "concept" ? "illustrative" : "photo"),
@@ -113,25 +124,35 @@ async function gallery(env: Env, id: string) {
     }),
   };
 }
-async function retire(env: Env, pid: string, url: string) {
-  if (!url.startsWith("/media/")) return;
-  const row = await env.DB.prepare(
-    "SELECT storage_key,id FROM media_objects WHERE id=? AND product_id=?",
+async function retire(env: Env, pid: string, url: string, key?: string) {
+  await env.DB.prepare(
+    `DELETE FROM product_image_text WHERE product_id=? AND url=? AND NOT EXISTS
+    (SELECT 1 FROM products p,json_each(p.images) j WHERE p.id=? AND j.value=?)`,
   )
-    .bind(url.slice(7), pid)
-    .first<{ storage_key: string; id: string }>();
-  if (row) {
-    try {
-      await env.PRODUCT_IMAGES?.delete(row.storage_key);
-      await env.DB.prepare("DELETE FROM media_objects WHERE id=?")
-        .bind(row.id)
-        .run();
-    } catch {
-      console.error("Product image cleanup needs retry.");
-    }
-  }
+    .bind(pid, url, pid, url)
+    .run();
+  if (!url.startsWith("/media/")) return;
+  if (key)
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO media_cleanup_queue(storage_key)
+    SELECT ? WHERE NOT EXISTS (SELECT 1 FROM products p,json_each(p.images) j WHERE j.value=?)`,
+    )
+      .bind(key, url)
+      .run();
+  await queueRetiredMedia(env, url.slice(7));
+  await flushMediaCleanup(env);
 }
 export function registerMedia(app: App) {
+  app.get("/api/admin/media/cleanup", async (c) =>
+    c.json(await mediaCleanupStatus(c.env)),
+  );
+  app.post("/api/admin/media/cleanup", async (c) => {
+    if (!c.env.PRODUCT_IMAGES)
+      return c.json({ error: "Image storage is not configured." }, 503);
+    await queueRetiredMedia(c.env);
+    await flushMediaCleanup(c.env);
+    return c.json(await mediaCleanupStatus(c.env));
+  });
   app.get("/api/products/:id/images", async (c) => {
     const result = await gallery(c.env, c.req.param("id"));
     return !result || result.status === "archived"
@@ -216,43 +237,57 @@ export function registerMedia(app: App) {
       const key = `products/${p.id}/${id}.${mime === "image/jpeg" ? "jpg" : mime.slice(6)}`;
       const old = images[index];
       images[index] = url;
-      await c.env.PRODUCT_IMAGES.put(key, bytes, {
-        httpMetadata: { contentType: mime },
-      });
+      // Register before the external write so an interrupted upload is discoverable.
+      // Staged entries are never public until the gallery CAS succeeds.
+      await c.env.DB.prepare(
+        "INSERT INTO media_objects (id,product_id,storage_key,content_type,byte_size,alt,kind) VALUES (?,?,?,?,?,?,?)",
+      )
+        .bind(id, p.id, key, mime, bytes.length, input.alt, input.kind)
+        .run();
       try {
+        await c.env.PRODUCT_IMAGES.put(key, bytes, {
+          httpMetadata: { contentType: mime },
+        });
         const result = await c.env.DB.batch([
           c.env.DB.prepare(
-            "INSERT INTO media_objects (id,product_id,storage_key,content_type,byte_size,alt,kind) SELECT ?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM products WHERE id=? AND images=?)",
-          ).bind(
-            id,
-            p.id,
-            key,
-            mime,
-            bytes.length,
-            input.alt,
-            input.kind,
-            p.id,
-            p.images,
-          ),
-          c.env.DB.prepare(
-            "UPDATE products SET images=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND images=?",
-          ).bind(JSON.stringify(images), p.id, p.images),
+            "UPDATE products SET images=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND images=? AND EXISTS (SELECT 1 FROM media_objects WHERE id=?)",
+          ).bind(JSON.stringify(images), p.id, p.images, id),
         ]);
-        if (!changes(result[1])) {
-          await c.env.PRODUCT_IMAGES.delete(key);
+        if (!changes(result[0])) {
+          await retire(c.env, p.id, url, key);
           return c.json(
             { error: "Gallery changed in another session. Reload and retry." },
             409,
           );
         }
       } catch (error) {
-        await c.env.PRODUCT_IMAGES.delete(key);
+        await retire(c.env, p.id, url, key);
         throw error;
       }
       if (old) await retire(c.env, p.id, old);
       return c.json({ url, id }, 201);
     },
   );
+  app.put("/api/admin/products/:id/images/text", async (c) => {
+    const { url, alt } = z
+      .object({
+        url: z.string().max(500),
+        alt: z.string().trim().min(3).max(300),
+      })
+      .strict()
+      .parse(await c.req.json());
+    const p = await product(c.env, c.req.param("id"));
+    if (!p) return c.json({ error: "Design not found." }, 404);
+    if (!(JSON.parse(p.images) as string[]).includes(url))
+      return c.json({ error: "Choose an existing gallery image." }, 400);
+    await c.env.DB.prepare(
+      `INSERT INTO product_image_text(product_id,url,alt) VALUES (?,?,?)
+      ON CONFLICT(product_id,url) DO UPDATE SET alt=excluded.alt`,
+    )
+      .bind(p.id, url, alt)
+      .run();
+    return c.json({ ok: true });
+  });
   app.put("/api/admin/products/:id/images/order", async (c) => {
     const input = z
       .object({ images: z.array(z.string()).min(1).max(12) })

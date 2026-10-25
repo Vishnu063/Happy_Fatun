@@ -17,6 +17,8 @@ import BrandMark from "./components/BrandMark";
 import { currentPath, navigate, interceptNavigation } from "./lib/navigation";
 import { pageMetadata, productURL, categoryURL } from "../shared/seo";
 import Contact from "./components/Contact";
+import Guides from "./components/Guides";
+import { guides, guideURL, categoryContent } from "../shared/content";
 import { captureSource, type Business } from "./lib/contact";
 const Admin = lazy(() => import("./components/Admin"));
 export default function App() {
@@ -32,6 +34,19 @@ export default function App() {
   const [sort, setSort] = useState("name");
   const [budget, setBudget] = useState("");
   const [menu, setMenu] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(24);
+  useEffect(() => {
+    if (visibleCount > 24)
+      document
+        .querySelector<HTMLAnchorElement>(
+          `#collection .product-card:nth-child(${visibleCount - 23}) .product-link`,
+        )
+        ?.focus();
+  }, [visibleCount]);
+  useEffect(
+    () => setVisibleCount(24),
+    [query, category, material, budget, sort],
+  );
   const load = () =>
     api<{ products: Product[]; categories: Category[] }>("/catalog")
       .then(async (data) => {
@@ -94,7 +109,12 @@ export default function App() {
     if (collection) setCategory(collection.id);
     else if (route === "/") setCategory("all");
     if (!loaded && (isDesign || route.startsWith("/collections/"))) return;
-    const meta = pageMetadata(route, selected, collection);
+    const meta = pageMetadata(
+      route,
+      selected,
+      collection,
+      business?.service_area,
+    );
     document.title = meta.title;
     document
       .querySelector('meta[name="description"]')
@@ -115,7 +135,15 @@ export default function App() {
     }
     robots.content =
       route.startsWith("/admin") ||
-      (!selected && !collection && !["/", "/contact", "/about"].includes(route))
+      (!selected &&
+        !collection &&
+        ![
+          "/",
+          "/contact",
+          "/about",
+          "/guides",
+          ...guides.map(guideURL),
+        ].includes(route))
         ? "noindex, nofollow"
         : "index, follow";
     canonical.href =
@@ -128,7 +156,7 @@ export default function App() {
     if (selected && route.startsWith("/product/"))
       navigate(productURL(selected), true);
     else if (location.hash.startsWith("#/") && !isDesign) navigate(route, true);
-  }, [route, selected, collection]);
+  }, [route, selected, collection, business]);
   const browse = (id = "all") => {
     setCategory(id);
     setQuery("");
@@ -169,6 +197,7 @@ export default function App() {
         <nav aria-label="Main navigation" className={menu ? "nav open" : "nav"}>
           <button onClick={() => browse()}>Explore furniture</button>
           <a href="/about">Our approach</a>
+          <a href="/guides">Buying guides</a>
           <a href="/contact">Contact</a>
           <a href="/admin">
             Owner studio <ArrowUpRight size={14} />
@@ -192,6 +221,8 @@ export default function App() {
           >
             <Admin onChange={load} />
           </Suspense>
+        ) : route === "/guides" || guides.some((g) => guideURL(g) === route) ? (
+          <Guides path={route} />
         ) : route === "/contact" ? (
           <Contact business={business} />
         ) : route === "/about" ? (
@@ -251,49 +282,102 @@ export default function App() {
           </section>
         ) : (
           <>
-            <section className="hero">
-              <div className="hero-copy">
+            {collection && (
+              <section className="container prose">
                 <p className="eyebrow">
-                  <span /> A HOME, UNIQUELY YOURS
+                  PLAN YOUR {collection.name.toUpperCase()} REQUEST
                 </p>
-                <h1>
-                  {collection
-                    ? `${collection.name}, thoughtfully considered.`
-                    : "Furniture with soul."}
-                  <br />
-                  <em>Made for your life.</em>
-                </h1>
+                <h1>{collection.name} design concepts</h1>
+                <p>{categoryContent(collection).intro}</p>
+                <ul>
+                  {categoryContent(collection).checks.map((text) => (
+                    <li key={text}>{text}</li>
+                  ))}
+                </ul>
                 <p>
-                  Considered forms. Honest materials. Explore furniture concepts
-                  and shape them around the way you live.
+                  <a href="/guides/measure-for-furniture">Measuring guide</a> ·{" "}
+                  <a href="/guides/compare-furniture-quotes">
+                    Materials and quotation guide
+                  </a>
                 </p>
-                <button className="btn" onClick={() => browse()}>
-                  Explore the collection <ArrowUpRight size={19} />
-                </button>
-                <div className="hero-note">
-                  <span className="line" /> YOUR SPACE. YOUR DIMENSIONS. YOUR
-                  STORY.
+              </section>
+            )}
+            {!collection && (
+              <section className="hero">
+                <div className="hero-copy">
+                  <p className="eyebrow">
+                    <span /> A HOME, UNIQUELY YOURS
+                  </p>
+                  <h1>
+                    Furniture with soul.
+                    <br />
+                    <em>Made for your life.</em>
+                  </h1>
+                  <p>
+                    Considered forms. Honest materials. Explore furniture
+                    concepts and shape them around the way you live.
+                  </p>
+                  <form
+                    className="hero-search"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setCategory("all");
+                      navigate("/");
+                      setTimeout(() => {
+                        document.getElementById("collection")?.scrollIntoView();
+                        document
+                          .getElementById("catalog-search")
+                          ?.focus({ preventScroll: true });
+                      }, 0);
+                    }}
+                  >
+                    <label>
+                      <span className="sr-only">
+                        Search all furniture designs
+                      </span>
+                      <input
+                        type="search"
+                        placeholder="Find your next furniture idea…"
+                        value={query}
+                        onChange={(e) => setQuery(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      className="icon"
+                      aria-label="Search the collection"
+                    >
+                      <Search size={20} />
+                    </button>
+                  </form>
+                  <button className="btn" onClick={() => browse()}>
+                    Explore the collection <ArrowUpRight size={19} />
+                  </button>
+                  <div className="hero-note">
+                    <span className="line" /> YOUR SPACE. YOUR DIMENSIONS. YOUR
+                    STORY.
+                  </div>
                 </div>
-              </div>
-              <div className="hero-art">
-                <img
-                  src="/assets/sofas-1.svg"
-                  alt="Illustrated lounge sofa in a warm, minimal room"
-                  fetchPriority="high"
-                />
-                <span className="art-tag">
-                  THE CONCEPT COLLECTION <span>01 / Living</span>
-                </span>
-                <div className="art-caption">
-                  Quiet forms.
-                  <br />
-                  <em>Endless possibilities.</em>
+                <div className="hero-art">
+                  <img
+                    src="/assets/sofas-1.svg"
+                    alt="Illustrated lounge sofa in a warm, minimal room"
+                    fetchPriority="high"
+                  />
+                  <span className="art-tag">
+                    THE CONCEPT COLLECTION <span>01 / Living</span>
+                  </span>
+                  <div className="art-caption">
+                    Quiet forms.
+                    <br />
+                    <em>Endless possibilities.</em>
+                  </div>
+                  <span className="image-disclosure">
+                    Original illustrative demo concept
+                  </span>
                 </div>
-                <span className="image-disclosure">
-                  Original illustrative demo concept
-                </span>
-              </div>
-            </section>
+              </section>
+            )}
             <section className="values" aria-label="Our process" tabIndex={0}>
               <div>
                 <Ruler size={22} />
@@ -351,7 +435,7 @@ export default function App() {
               >
                 <button
                   className={category === "all" ? "active" : ""}
-                  onClick={() => setCategory("all")}
+                  onClick={() => browse()}
                 >
                   All furniture
                 </button>
@@ -359,7 +443,7 @@ export default function App() {
                   <button
                     key={c.id}
                     className={category === c.id ? "active" : ""}
-                    onClick={() => setCategory(c.id)}
+                    onClick={() => browse(c.id)}
                   >
                     {c.name}
                   </button>
@@ -370,6 +454,7 @@ export default function App() {
                   <Search size={19} />
                   <span className="sr-only">Search furniture</span>
                   <input
+                    id="catalog-search"
                     type="search"
                     placeholder="Search designs, materials, a little inspiration…"
                     value={query}
@@ -438,19 +523,35 @@ export default function App() {
                     onClick={() => {
                       setQuery("");
                       setMaterial("all");
-                      setCategory("all");
                       setBudget("");
+                      browse();
                     }}
                   >
                     Reset filters
                   </button>
                 </div>
               ) : (
-                <div className="product-grid">
-                  {visible.map((p) => (
-                    <ProductCard key={p.id} product={p} />
-                  ))}
-                </div>
+                <>
+                  <div className="product-grid">
+                    {visible.slice(0, visibleCount).map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                  </div>
+                  {visibleCount < visible.length && (
+                    <div className="catalog-more">
+                      <p role="status">
+                        Showing {Math.min(visibleCount, visible.length)} of{" "}
+                        {visible.length} matching designs
+                      </p>
+                      <button
+                        className="btn secondary"
+                        onClick={() => setVisibleCount((count) => count + 24)}
+                      >
+                        Load more designs
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
             <section className="order-process container">
@@ -485,7 +586,10 @@ export default function App() {
               </ol>
             </section>
             <section className="local-intro container">
-              <h2>Planning a furniture project in Pune?</h2>
+              <h2>
+                Planning a furniture project
+                {business?.service_area ? ` in ${business.service_area}` : ""}?
+              </h2>
               <p>
                 Tell us about your space and locality. Exact service areas,
                 materials and delivery feasibility are confirmed during review.

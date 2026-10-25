@@ -172,6 +172,10 @@ legend span {
   line-height: 1.2;
   letter-spacing: -0.04em;
 }
+.viewer-controls button[aria-label="Reset model view"] {
+  font-size: 12px;
+  padding: 0 8px;
+}
 .brand-sub {
   display: block;
   font-family: var(--font-sans);
@@ -644,6 +648,9 @@ footer small {
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 60px;
+}
+.detail-grid > * {
+  min-width: 0;
 }
 .gallery {
   position: relative;
@@ -1497,15 +1504,20 @@ th {
 .viewer-controls {
   position: absolute;
   top: 10px;
+  left: 10px;
   right: 10px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 5px;
 }
 .viewer-controls button {
   background: #fffdf6;
   color: #283e33;
-  min-width: 36px;
-  min-height: 36px;
+  min-width: 42px;
+  min-height: 42px;
+  flex-shrink: 0;
+  touch-action: manipulation;
   border: 1px solid #bdc3b3;
   font-size: 20px;
 }
@@ -1772,4 +1784,44 @@ th {
     font-size: 10px !important;
     padding: 8px 12px !important;
   }
+}
+.hero-search {
+  display: flex;
+  width: 100%;
+  max-width: 380px;
+  align-items: center;
+  border: 1px solid #aeb6a3;
+  background: #fffdf8;
+  margin: 0 0 20px;
+}
+.hero-search label {
+  margin: 0;
+  flex: 1;
+}
+.hero-search input {
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  min-width: 0;
+}
+.hero-search button {
+  flex: none;
+}
+.card-quote-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  font-size: 11px;
+  color: var(--green);
+  border-bottom: 1px solid #b9c2ad;
+  margin-top: 8px;
+}
+.catalog-more {
+  text-align: center;
+  padding-top: 30px;
+}
+.catalog-more p {
+  font-size: 12px;
+  color: var(--muted);
 }

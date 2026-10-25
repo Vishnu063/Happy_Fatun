@@ -13,6 +13,7 @@ import { api, send, money, type Product, type Category } from "../lib/api";
 import ImageManager from "./ImageManager";
 import LeadPanel from "./LeadPanel";
 import BusinessEditor from "./BusinessEditor";
+import StorageCleanup from "./StorageCleanup";
 type Quote = {
   id: string;
   reference: string;
@@ -494,9 +495,17 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                   key={c.id + c.name}
                   onSubmit={(e) => {
                     e.preventDefault();
-                    const name = new FormData(e.currentTarget).get("name");
+                    const fields = new FormData(e.currentTarget);
+                    const name = fields.get("name");
                     void action(() =>
-                      api(`/admin/categories/${c.id}`, send("PUT", { name })),
+                      api(
+                        `/admin/categories/${c.id}`,
+                        send("PUT", {
+                          name,
+                          seo_title: fields.get("seo_title"),
+                          seo_description: fields.get("seo_description"),
+                        }),
+                      ),
                     );
                   }}
                 >
@@ -510,6 +519,28 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                       maxLength={80}
                     />
                   </label>
+                  <details className="grow">
+                    <summary>Search listing for {c.name}</summary>
+                    <label>
+                      SEO title for {c.name}
+                      <input
+                        name="seo_title"
+                        maxLength={70}
+                        defaultValue={c.seo_title || ""}
+                      />
+                    </label>
+                    <label>
+                      Meta description for {c.name}
+                      <textarea
+                        name="seo_description"
+                        maxLength={180}
+                        defaultValue={c.seo_description || ""}
+                      />
+                    </label>
+                    <small>
+                      Leave blank for defaults; save with Rename / save listing.
+                    </small>
+                  </details>
                   <button className="btn secondary" disabled={busy}>
                     Rename
                   </button>
@@ -608,6 +639,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                 Margin = (final price − internal cost) ÷ final price. Quotes
                 below this threshold display a warning.
               </p>
+              <StorageCleanup />
               <h3>Authentication, contact & email</h3>
               <p>
                 Configure server secrets and environment variables using the
@@ -713,6 +745,30 @@ function ProductEditor({
           onChange={(e) => update("description", e.target.value)}
         />
       </label>
+      <fieldset>
+        <legend>Search listing (optional)</legend>
+        <label>
+          SEO title
+          <input
+            maxLength={70}
+            value={p.seo_title || ""}
+            onChange={(e) => update("seo_title", e.target.value)}
+          />
+        </label>
+        <label>
+          Meta description
+          <textarea
+            maxLength={180}
+            rows={2}
+            value={p.seo_description || ""}
+            onChange={(e) => update("seo_description", e.target.value)}
+          />
+        </label>
+        <p className="muted small">
+          Leave blank for defaults. Describe this design truthfully; use only
+          verified service areas.
+        </p>
+      </fieldset>
       <div className="three-fields">
         <label>
           Starting price (₹, blank = on request)

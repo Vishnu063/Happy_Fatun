@@ -54,7 +54,7 @@ describe("public SEO documents and descriptive URLs", () => {
   });
   it("generates sitemap/robots from current public records and keeps owner pages out of indexes", async () => {
     const sitemap = await (await get("/sitemap.xml")).text();
-    expect(sitemap.match(/<loc>/g)).toHaveLength(33);
+    expect(sitemap.match(/<loc>/g)).toHaveLength(39);
     expect(sitemap).toContain("/design/aara-lounge-sofa/sofas-1");
     expect(sitemap).not.toContain("/admin");
     const robots = await (await get("/robots.txt")).text();
@@ -86,12 +86,110 @@ describe("category SEO", () => {
     expect(response.status).toBe(200);
     const html = await response.text();
     expect(html).toContain(
-      "<title>Sofas design concepts for Pune projects | Aaranya Living</title>",
+      "<title>Sofas design concepts | Aaranya Living</title>",
     );
     expect(html).toContain(
       `rel="canonical" href="${origin}/collections/sofas/sofas"`,
     );
     expect(html).toContain("<h1>Sofas design concepts</h1>");
     expect((await get("/collections/old/sofas")).status).toBe(301);
+  });
+});
+
+describe("owner SEO request: factual landing pages and editable metadata", () => {
+  it("renders persisted overrides and edited image alt safely without requiring JavaScript", async () => {
+    db.db
+      .prepare(
+        "UPDATE products SET seo_title=?,seo_description=? WHERE id='sofas-1'",
+      )
+      .run(
+        "Owner title <script>alert(1)</script>",
+        'Owner description with "quotes" & details.',
+      );
+    const product = db.db
+      .prepare("SELECT images FROM products WHERE id='sofas-1'")
+      .get()!;
+    db.db
+      .prepare("INSERT INTO product_image_text VALUES (?,?,?)")
+      .run(
+        "sofas-1",
+        JSON.parse(String(product.images))[0],
+        "<img src=x onerror=alert(1)> studio view",
+      );
+    const html = await (await get("/design/aara-lounge-sofa/sofas-1")).text();
+    expect(html).toContain(
+      "<title>Owner title &lt;script&gt;alert(1)&lt;/script&gt;</title>",
+    );
+    expect(html).toContain(
+      'content="Owner description with &quot;quotes&quot; &amp; details."',
+    );
+    expect(html).toContain(
+      'alt="&lt;img src=x onerror=alert(1)&gt; studio view"',
+    );
+    expect(html).not.toContain("<script>alert(1)</script>");
+    db.db
+      .prepare(
+        "UPDATE categories SET seo_title='Owner sofa collection',seo_description='A truthful sofa comparison.' WHERE id='sofas'",
+      )
+      .run();
+    const category = await (await get("/collections/sofas/sofas")).text();
+    expect(category).toContain("<title>Owner sofa collection</title>");
+    expect(category).toContain('content="A truthful sofa comparison."');
+  });
+  it("serves distinct useful intent content, crawlable current product links and original guides", async () => {
+    const cases = [
+      ["sofas/sofas", "usable seat depth"],
+      ["beds/beds", "mattress"],
+      ["dining/dining", "chairs pulled out"],
+      ["wardrobes/wardrobes", "sliding access"],
+      ["custom-furniture/custom", "unusual space"],
+    ];
+    const htmls = [];
+    for (const [path, phrase] of cases) {
+      const response = await get("/collections/" + path);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(phrase);
+      expect(html).toContain("/guides/measure-for-furniture");
+      htmls.push(html);
+    }
+    expect(new Set(htmls).size).toBe(5);
+    expect(htmls[0]).toContain('href="/design/aara-lounge-sofa/sofas-1"');
+    db.db
+      .prepare("UPDATE products SET status='archived' WHERE id='sofas-1'")
+      .run();
+    expect(await (await get("/collections/sofas/sofas")).text()).not.toContain(
+      'href="/design/aara-lounge-sofa/sofas-1"',
+    );
+    for (const path of [
+      "/guides",
+      "/guides/measure-for-furniture",
+      "/guides/compare-furniture-quotes",
+    ]) {
+      const response = await get(path);
+      expect(response.status).toBe(200);
+      const html = await response.text();
+      expect(html).toContain(`rel="canonical" href="${origin}${path}"`);
+      expect(html).toContain("index, follow");
+      expect(html).toContain("<h1>");
+    }
+    expect((await get("/guides/not-a-guide")).status).toBe(404);
+    expect(await (await get("/")).text()).toContain(
+      'href="/collections/sofas/sofas"',
+    );
+  });
+  it("makes no default geographic claims and uses only configured owner service area", async () => {
+    for (const path of ["/", "/contact", "/collections/sofas/sofas"]) {
+      const html = await (await get(path)).text();
+      expect(html).not.toMatch(/Pune|Maharashtra|all India/);
+    }
+    db.db
+      .prepare(
+        "UPDATE business_profile SET service_area='Owner-confirmed locality' WHERE id=1",
+      )
+      .run();
+    expect(await (await get("/")).text()).toContain(
+      "Custom furniture concepts | Owner-confirmed locality",
+    );
   });
 });

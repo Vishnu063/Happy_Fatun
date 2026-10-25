@@ -154,6 +154,8 @@ describe("PR #2 owner security findings", () => {
       ["/admin/settings", "PUT"],
       ["/admin/quotes/fake/retry", "POST"],
       ["/admin/products/sofas-1/images/order", "PUT"],
+      ["/admin/products/sofas-1/images/text", "PUT"],
+      ["/admin/media/cleanup", "POST"],
       ["/admin/products", "POST"],
       ["/admin/products/sofas-1", "DELETE"],
       ["/admin/categories/sofas", "PUT"],

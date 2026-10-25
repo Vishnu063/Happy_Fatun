@@ -48,6 +48,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     ),
   ).toBe(true);
   await page.getByRole("button", { name: "Sofas", exact: true }).click();
+  await expect(page).toHaveURL(/\/collections\/sofas\/sofas$/);
   await expect(page.locator("#collection .product-card")).toHaveCount(4);
   await page.getByRole("searchbox", { name: "Search furniture" }).fill("Aara");
   await expect(page.locator("#collection .product-card")).toHaveCount(1);
@@ -55,7 +56,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     .getByRole("combobox", { name: "Material filter" })
     .selectOption("Walnut");
   await expect(page.locator("#collection .product-card")).toHaveCount(1);
-  await page.locator("#collection .product-card a").click();
+  await page.locator("#collection .product-card .product-link").click();
   await expect(
     page.getByRole("heading", { name: "Aara lounge sofa", exact: true }),
   ).toBeVisible();
@@ -238,6 +239,31 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await expect(page.getByLabel("Follow-up date", { exact: true })).toHaveValue(
     "2030-02-20",
   );
+  await lead
+    .getByRole("combobox", { name: "Lead stage", exact: true })
+    .selectOption("Won");
+  await lead
+    .getByRole("button", { name: "Save lead follow-up", exact: true })
+    .click();
+  await expect(page.locator(".lead")).toHaveCount(0); // Existing Quote Sent filter remains active.
+  const inquiryCount = (
+    await (await page.request.get("/api/admin/data")).json()
+  ).quotes.length;
+  await expect(
+    page
+      .locator(".lead-totals > div")
+      .filter({ has: page.getByText("Won", { exact: true }) })
+      .locator("strong"),
+  ).toHaveText(String(inquiryCount));
+  await expect(
+    page.getByText(
+      `${inquiryCount} recorded inquiries · 100.0% marked won. This is an inquiry conversion ratio, not a guarantee of sales.`,
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".source-totals")).toHaveText(
+    `direct: ${inquiryCount}`,
+  );
   await page.getByRole("button", { name: "products", exact: true }).click();
   await page
     .getByRole("button", { name: "Edit Aara lounge sofa", exact: true })
@@ -256,6 +282,12 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     page.getByRole("cell", { name: "₹25,000", exact: true }).first(),
   ).toBeVisible();
   await page.getByRole("button", { name: "settings", exact: true }).click();
+  const cleanup = page.getByRole("region", { name: "Image storage cleanup" });
+  await expect(cleanup).toContainText("0 queued objects");
+  await cleanup
+    .getByRole("button", { name: "Retry image cleanup", exact: true })
+    .click();
+  await expect(cleanup).toContainText("0 queued objects");
   await page.getByLabel("Public phone", { exact: true }).fill("+91 9000000001");
   await page
     .getByLabel("Public email", { exact: true })
@@ -354,6 +386,14 @@ test("owner creates, renames and deletes categories and designs", async ({
   await page
     .getByLabel("Starting price (₹, blank = on request)", { exact: true })
     .fill("10000");
+  await page
+    .getByLabel("SEO title", { exact: true })
+    .fill(`Test desk search listing ${suffix}`);
+  await page
+    .getByLabel("Meta description", { exact: true })
+    .fill(
+      "A verified isolated search listing fixture, never real furniture stock.",
+    );
   await page.getByRole("button", { name: "Save design", exact: true }).click();
   await expect(
     page.getByRole("button", { name: `Edit Test desk ${suffix}`, exact: true }),
@@ -387,6 +427,16 @@ test("owner creates, renames and deletes categories and designs", async ({
     ),
   ).toBeVisible();
   await expect(page.locator(".managed-image")).toHaveCount(2);
+  await page
+    .getByLabel("Edit alt text for image 2", { exact: true })
+    .fill("Edited studio alt text for isolated test design");
+  await page
+    .getByRole("button", { name: "Save image 2 description", exact: true })
+    .click();
+  await expect(
+    page.getByText("Image description saved.", { exact: true }),
+  ).toBeVisible();
+
   await page
     .getByRole("combobox", { name: "Upload destination", exact: true })
     .selectOption("0");
@@ -434,6 +484,20 @@ test("owner creates, renames and deletes categories and designs", async ({
   await expect(catalog.locator("#collection .product-card")).toContainText(
     `Test desk ${suffix}`,
   );
+  await catalog
+    .locator("#collection")
+    .getByRole("link", { name: "Request quote", exact: true })
+    .click();
+  await expect(catalog).toHaveURL(/#customize$/);
+  await expect(catalog).toHaveTitle(`Test desk search listing ${suffix}`);
+  await expect(catalog.locator(".gallery img").first()).toHaveAttribute(
+    "alt",
+    "Edited studio alt text for isolated test design",
+  );
+
+  await expect(
+    catalog.getByLabel("Length (cm)", { exact: true }),
+  ).toBeFocused();
   await catalog.close();
   page.on("dialog", (dialog) => dialog.accept());
   await page
@@ -452,4 +516,195 @@ test("owner creates, renames and deletes categories and designs", async ({
   await expect(
     page.getByRole("textbox", { name: `Rename Studio ${suffix}`, exact: true }),
   ).toHaveCount(0);
+});
+
+test("catalog growth keeps initial rendering bounded and all designs discoverable", async ({
+  page,
+  isMobile,
+}) => {
+  await page.route("**/api/catalog", async (route) => {
+    const response = await route.fetch();
+    const data = await response.json();
+    const base = data.products[0];
+    data.products = Array.from({ length: 300 }, (_, i) => ({
+      ...base,
+      id: `isolated-growth-${i}`,
+      name: `Isolated growth fixture ${String(i).padStart(3, "0")}`,
+      description: "Isolated browser load fixture; never published or stored.",
+      model: null,
+    }));
+    await route.fulfill({ response, json: data });
+  });
+  await page.goto("/");
+  await expect(page.locator("#collection .product-card")).toHaveCount(24);
+  await page
+    .getByRole("button", { name: "Load more designs", exact: true })
+    .click();
+  await expect(page.locator("#collection .product-card")).toHaveCount(48);
+  await expect(
+    page.locator("#collection .product-card").nth(24).locator(".product-link"),
+  ).toBeFocused();
+  await page
+    .getByRole("searchbox", { name: "Search furniture", exact: true })
+    .fill("fixture 299");
+  await expect(page.locator("#collection .product-card")).toHaveCount(1);
+  await expect(page.locator("#collection .product-card")).toContainText(
+    "Isolated growth fixture 299",
+  );
+  await page
+    .getByRole("searchbox", {
+      name: "Search all furniture designs",
+      exact: true,
+    })
+    .fill("fixture 298");
+  await page
+    .getByRole("button", { name: "Search the collection", exact: true })
+    .click();
+  await expect(page.locator("#collection .product-card")).toHaveCount(1);
+  await expect(page.locator("#collection .product-card")).toContainText(
+    "Isolated growth fixture 298",
+  );
+  if (isMobile)
+    await page
+      .getByRole("button", { name: "Open navigation", exact: true })
+      .click();
+  await page
+    .getByRole("link", { name: "Buying guides", exact: true })
+    .first()
+    .click();
+  await expect(page).toHaveURL(/\/guides$/);
+  await page
+    .getByRole("link", {
+      name: "Measure your room before requesting furniture",
+      exact: true,
+    })
+    .click();
+  await expect(page).toHaveTitle(
+    "Measure your room before requesting furniture | Aaranya Living",
+  );
+  await expect(
+    page.getByRole("heading", {
+      name: "Check the delivery route",
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test("every seeded design exposes honest 3D availability and working demo controls", async ({
+  page,
+  isMobile,
+}) => {
+  test.setTimeout(180000);
+  page.setDefaultTimeout(10000);
+  const { products } = await (await page.request.get("/api/catalog")).json();
+  expect(products).toHaveLength(24);
+  const inventory: { id: string; shape: string | null; result: string }[] = [];
+  for (const product of products) {
+    await page.goto(`/design/${product.id}`);
+    if (!product.model) {
+      await expect(
+        page.getByRole("button", { name: "360°", exact: true }),
+      ).toHaveCount(0);
+      inventory.push({ id: product.id, shape: null, result: "gallery-only" });
+      continue;
+    }
+    await page.getByRole("button", { name: "360°", exact: true }).click();
+    const canvas = page.locator(".viewer canvas");
+    await expect(
+      canvas.or(page.getByText("3D is unavailable on this device.")),
+    ).toBeVisible();
+    if (!(await canvas.isVisible())) {
+      inventory.push({
+        id: product.id,
+        shape: product.model,
+        result: "device-fallback; controls not verified",
+      });
+      continue;
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    const initial = await canvas.screenshot();
+    for (const name of [
+      "Rotate model left",
+      "Rotate model right",
+      "Rotate model up",
+      "Rotate model down",
+      "Zoom model in",
+      "Zoom model out",
+    ]) {
+      await page.getByRole("button", { name, exact: true }).click();
+      await expect
+        .poll(async () => (await canvas.screenshot()).equals(initial))
+        .toBe(false);
+      expect(await page.evaluate(() => window.visualViewport?.scale ?? 1)).toBe(
+        1,
+      );
+      await page
+        .getByRole("button", { name: "Reset model view", exact: true })
+        .click();
+      await expect
+        .poll(async () => (await canvas.screenshot()).equals(initial))
+        .toBe(true);
+    }
+    if (isMobile) {
+      const box = (await canvas.boundingBox())!;
+      const client = await page.context().newCDPSession(page);
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
+      });
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [
+          { x: box.x + box.width / 2 - 60, y: box.y + box.height / 2 - 40 },
+        ],
+      });
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+      await expect
+        .poll(async () => (await canvas.screenshot()).equals(initial))
+        .toBe(false);
+      await client.detach();
+    }
+    inventory.push({
+      id: product.id,
+      shape: product.model,
+      result: isMobile
+        ? "generic controls and touch verified"
+        : "generic controls verified",
+    });
+  }
+  await test.info().attach("per-product-demo-3d-inventory", {
+    body: JSON.stringify(inventory, null, 2),
+    contentType: "application/json",
+  });
+  console.log(
+    `${isMobile ? "Mobile" : "Desktop"} 3D inventory: ${inventory.filter((i) => i.result.startsWith("generic")).length} generic demos verified, ${inventory.filter((i) => i.result.startsWith("device")).length} device fallbacks, ${inventory.filter((i) => i.result === "gallery-only").length} gallery-only; zero accurate product models`,
+  );
+  // Deliberately remove WebGL, rather than relying on a machine that lacks it.
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      type: string,
+      ...args: unknown[]
+    ) {
+      if (type.includes("webgl")) return null;
+      return Reflect.apply(original, this, [type, ...args]);
+    } as typeof original;
+  });
+  await page.goto("/design/aara-lounge-sofa/sofas-1");
+  await page.getByRole("button", { name: "360°", exact: true }).click();
+  await expect(
+    page.getByText("3D is unavailable on this device."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "View image 1", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Zoom image", exact: true }),
+  ).toBeVisible();
 });

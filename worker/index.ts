@@ -15,6 +15,7 @@ export { passwordHash } from "./crypto";
 import { publicBusiness, registerLeads } from "./leads";
 import { leadSources } from "../shared/leads";
 import { registerMedia, isImageUpload, MAX_IMAGE_BYTES } from "./media";
+import { flushMediaCleanup } from "./media-cleanup";
 export type Env = {
   DB: D1Database;
   ASSETS?: Fetcher;
@@ -116,7 +117,7 @@ app.onError((err, c) => {
   );
 });
 const publicColumns =
-  "id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model";
+  "id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,seo_title,seo_description";
 function decode(row: Record<string, unknown>) {
   return {
     ...row,
@@ -139,17 +140,33 @@ app.get("/api/catalog", async (c) => {
     c.env.DB.prepare(
       `SELECT ${publicColumns} FROM products WHERE status != 'archived' ORDER BY name`,
     ).all(),
-    c.env.DB.prepare("SELECT id,name FROM categories ORDER BY name").all(),
-    c.env.DB.prepare("SELECT id,product_id,alt,kind FROM media_objects").all(),
+    c.env.DB.prepare(
+      "SELECT id,name,seo_title,seo_description FROM categories ORDER BY name",
+    ).all(),
+    c.env.DB.prepare(
+      `SELECT p.id AS product_id,j.value AS url,
+        COALESCE(t.alt,m.alt,p.name||' — view '||(CAST(j.key AS INTEGER)+1)) AS alt,
+        COALESCE(m.kind,CASE WHEN p.status='concept' THEN 'illustrative' ELSE 'photo' END) AS kind
+        FROM products p,json_each(p.images) j
+        LEFT JOIN media_objects m ON '/media/'||m.id=j.value AND m.product_id=p.id
+        LEFT JOIN product_image_text t ON t.product_id=p.id AND t.url=j.value
+        WHERE p.status!='archived'`,
+    ).all(),
   ]);
+  const metadata = new Map<
+    string,
+    Record<string, { alt: unknown; kind: unknown }>
+  >();
+  for (const image of media.results) {
+    const id = String(image.product_id);
+    const images = metadata.get(id) || {};
+    images[String(image.url)] = { alt: image.alt, kind: image.kind };
+    metadata.set(id, images);
+  }
   return c.json({
     products: products.results.map((row) => ({
       ...decode(row),
-      image_metadata: Object.fromEntries(
-        media.results
-          .filter((m) => m.product_id === row.id)
-          .map((m) => [`/media/${m.id}`, { alt: m.alt, kind: m.kind }]),
-      ),
+      image_metadata: metadata.get(String(row.id)) || {},
     })),
     categories: categories.results,
   });
@@ -400,6 +417,8 @@ const asset = z
   );
 const productInput = z
   .object({
+    seo_title: z.string().trim().max(70).optional(),
+    seo_description: z.string().trim().max(180).optional(),
     name: z.string().trim().min(2).max(120),
     category_id: z.string().min(1).max(80),
     description: z.string().trim().min(10).max(3000),
@@ -467,10 +486,12 @@ app.post("/api/admin/products", async (c) => {
     JSON.stringify(input.materials),
     input.model,
     input.internal_cost,
+    input.seo_title ?? "",
+    input.seo_description ?? "",
   ];
   await c.env.DB.batch([
     c.env.DB.prepare(
-      "INSERT INTO products (id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,internal_cost) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+      "INSERT INTO products (id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,internal_cost,seo_title,seo_description) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     ).bind(...values),
     c.env.DB.prepare(
       "INSERT INTO price_audit (id,product_id,old_price,new_price) VALUES (?,?,NULL,?)",
@@ -497,7 +518,7 @@ app.put("/api/admin/products/:id", async (c) => {
       "INSERT INTO price_audit (id,product_id,old_price,new_price) SELECT ?,id,price,? FROM products WHERE id=? AND price IS NOT ?",
     ).bind(crypto.randomUUID(), input.price, id, input.price),
     c.env.DB.prepare(
-      "UPDATE products SET name=?,category_id=?,description=?,material=?,finish=?,length=?,width=?,height=?,price=?,status=?,colors=?,materials=?,model=?,internal_cost=?,updated_at=CURRENT_TIMESTAMP WHERE id=?",
+      "UPDATE products SET name=?,category_id=?,description=?,material=?,finish=?,length=?,width=?,height=?,price=?,status=?,colors=?,materials=?,model=?,internal_cost=?,seo_title=COALESCE(?,seo_title),seo_description=COALESCE(?,seo_description),updated_at=CURRENT_TIMESTAMP WHERE id=?",
     ).bind(
       input.name,
       input.category_id,
@@ -513,29 +534,25 @@ app.put("/api/admin/products/:id", async (c) => {
       JSON.stringify(input.materials),
       input.model,
       input.internal_cost,
+      input.seo_title ?? null,
+      input.seo_description ?? null,
       id,
     ),
   ]);
   return c.json({ ok: true });
 });
 app.delete("/api/admin/products/:id", async (c) => {
-  const objects = await c.env.DB.prepare(
-    "SELECT storage_key FROM media_objects WHERE product_id=?",
-  )
-    .bind(c.req.param("id"))
-    .all<{ storage_key: string }>();
-  await c.env.DB.prepare("DELETE FROM products WHERE id=?")
-    .bind(c.req.param("id"))
-    .run();
-  if (objects.results.length) {
-    try {
-      await c.env.PRODUCT_IMAGES?.delete(
-        objects.results.map((row) => row.storage_key),
-      );
-    } catch {
-      console.error("Product image cleanup needs retry.");
-    }
-  }
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT OR IGNORE INTO media_cleanup_queue(storage_key,available_at)
+      SELECT m.storage_key,CASE WHEN EXISTS
+        (SELECT 1 FROM products p,json_each(p.images) j WHERE p.id=m.product_id AND j.value='/media/'||m.id)
+        THEN CURRENT_TIMESTAMP ELSE datetime('now','+5 minutes') END
+      FROM media_objects m WHERE m.product_id=?`,
+    ).bind(c.req.param("id")),
+    c.env.DB.prepare("DELETE FROM products WHERE id=?").bind(c.req.param("id")),
+  ]);
+  await flushMediaCleanup(c.env);
   return c.json({ ok: true });
 });
 app.post("/api/admin/categories", async (c) => {
@@ -551,14 +568,18 @@ app.post("/api/admin/categories", async (c) => {
       .first()
   )
     return c.json({ error: "Category already exists." }, 409);
-  await c.env.DB.prepare("INSERT INTO categories VALUES (?,?)")
+  await c.env.DB.prepare("INSERT INTO categories(id,name) VALUES (?,?)")
     .bind(id, name)
     .run();
   return c.json({ id }, 201);
 });
 app.put("/api/admin/categories/:id", async (c) => {
-  const { name } = z
-    .object({ name: z.string().trim().min(2).max(80) })
+  const { name, seo_title, seo_description } = z
+    .object({
+      name: z.string().trim().min(2).max(80),
+      seo_title: z.string().trim().max(70).optional(),
+      seo_description: z.string().trim().max(180).optional(),
+    })
     .parse(await c.req.json());
   if (
     await c.env.DB.prepare(
@@ -568,8 +589,10 @@ app.put("/api/admin/categories/:id", async (c) => {
       .first()
   )
     return c.json({ error: "Category already exists." }, 409);
-  await c.env.DB.prepare("UPDATE categories SET name=? WHERE id=?")
-    .bind(name, c.req.param("id"))
+  await c.env.DB.prepare(
+    "UPDATE categories SET name=?,seo_title=COALESCE(?,seo_title),seo_description=COALESCE(?,seo_description) WHERE id=?",
+  )
+    .bind(name, seo_title ?? null, seo_description ?? null, c.req.param("id"))
     .run();
   return c.json({ ok: true });
 });

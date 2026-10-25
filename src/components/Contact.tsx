@@ -11,9 +11,9 @@ export default function Contact({ business }: { business: Business | null }) {
         <em>A personal conversation.</em>
       </h1>
       <p>
-        Planning a furniture project in Pune? Explore a design, share your
-        preferred dimensions, and ask about feasibility and delivery in your
-        locality. Exact service areas and timing require owner confirmation.
+        Planning a furniture project? Explore a design, share your preferred
+        dimensions, and ask about feasibility and delivery in your locality.
+        Exact service areas and timing require owner confirmation.
       </p>
       {business?.summary && <p>{business.summary}</p>}
       <dl className="contact-details">

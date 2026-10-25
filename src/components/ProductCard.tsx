@@ -5,7 +5,7 @@ import { money, type Product } from "../lib/api";
 export default function ProductCard({ product: p }: { product: Product }) {
   return (
     <article className="product-card">
-      <a href={productURL(p)}>
+      <a className="product-link" href={productURL(p)}>
         <div className="card-image">
           <FurnitureImage
             src={p.images[0]}
@@ -45,6 +45,9 @@ export default function ProductCard({ product: p }: { product: Product }) {
             : `Starting at ${money(p.price)}`}{" "}
           <small>· Indicative only</small>
         </p>
+      </a>
+      <a className="card-quote-link" href={productURL(p) + "#customize"}>
+        Request quote <MoveUpRight size={14} />
       </a>
     </article>
   );

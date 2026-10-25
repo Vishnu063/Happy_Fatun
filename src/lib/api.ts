@@ -3,6 +3,8 @@ export interface Product {
   name: string;
   category_id: string;
   description: string;
+  seo_title?: string;
+  seo_description?: string;
   material: string;
   finish: string;
   length: number;
@@ -21,6 +23,8 @@ export interface Product {
   internal_cost?: number;
 }
 export interface Category {
+  seo_title?: string;
+  seo_description?: string;
   id: string;
   name: string;
 }

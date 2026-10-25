@@ -26,6 +26,12 @@ export default function ProductDetail({
 }) {
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   useEffect(() => {
+    if (location.hash === "#customize") {
+      document.getElementById("customize")?.scrollIntoView();
+      document.getElementById("length")?.focus({ preventScroll: true });
+    }
+  }, [p.id]);
+  useEffect(() => {
     api<{ images: GalleryImage[] }>(`/products/${p.id}/images`)
       .then((result) => setGallery(result.images))
       .catch(() => setGallery([]));
@@ -161,9 +167,11 @@ export default function ProductDetail({
               }
             }}
             onTouchStart={(e) => {
+              if (three) return;
               touch.current = e.touches[0].clientX;
             }}
             onTouchEnd={(e) => {
+              if (three) return;
               if (touch.current !== null) {
                 const delta = e.changedTouches[0].clientX - touch.current;
                 if (Math.abs(delta) > 40) move(delta < 0 ? 1 : -1);

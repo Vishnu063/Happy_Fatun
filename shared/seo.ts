@@ -1,3 +1,4 @@
+import { guides, guideURL } from "./content";
 export const brand = "Aaranya Living";
 export const tagline = "Where Nature Meets Craftsmanship.";
 export const slug = (name: string) =>
@@ -13,22 +14,50 @@ export const categoryURL = (c: { id: string; name: string }) =>
   `/collections/${slug(c.name)}/${encodeURIComponent(c.id)}`;
 export function pageMetadata(
   path: string,
-  product?: { name: string; description: string },
-  category?: { name: string },
+  product?: {
+    name: string;
+    description: string;
+    seo_title?: string;
+    seo_description?: string;
+  },
+  category?: { name: string; seo_title?: string; seo_description?: string },
+  serviceArea?: string | null,
 ) {
+  const local = serviceArea?.trim()
+    ? ` | ${serviceArea.trim().slice(0, 80)}`
+    : "";
+  const guide = guides.find((g) => guideURL(g) === path);
+  if (guide)
+    return {
+      title: `${guide.title} | ${brand}`,
+      description: guide.description,
+    };
+  if (path === "/guides")
+    return {
+      title: `Furniture buying guides | ${brand}`,
+      description:
+        "Practical furniture measuring, material and quotation guides. Prepare an informed request without treating concepts as manufactured stock.",
+    };
   if (product)
     return {
-      title: `${product.name} | Furniture design | ${brand}`,
-      description: `${product.description.slice(0, 135)} Request a personal furniture quotation.`,
+      title:
+        product.seo_title || `${product.name} | Furniture design | ${brand}`,
+      description:
+        product.seo_description ||
+        `${product.description.slice(0, 135)} Request a personal furniture quotation.`,
     };
   if (category)
     return {
-      title: `${category.name} design concepts for Pune projects | ${brand}`,
-      description: `Explore ${category.name.toLowerCase()} design concepts, customize dimensions and request a quote. Feasibility, service area and final pricing require confirmation.`,
+      title:
+        category.seo_title ||
+        `${category.name} design concepts${local} | ${brand}`,
+      description:
+        category.seo_description ||
+        `Explore ${category.name.toLowerCase()} design concepts, customize dimensions and request a quote. Feasibility, service area and final pricing require confirmation.`,
     };
   if (path === "/contact")
     return {
-      title: `Discuss your Pune furniture project | ${brand}`,
+      title: `Discuss your furniture project${local} | ${brand}`,
       description:
         "Contact Aaranya Living about furniture ideas, customization and delivery feasibility. Use configured business contacts or request a personal quote.",
     };
@@ -50,7 +79,7 @@ export function pageMetadata(
         "This page is unavailable. Explore the Aaranya Living design collection.",
     };
   return {
-    title: `${brand} | Custom furniture concepts for Pune`,
-    description: `${tagline} Explore furniture concepts, customize your design and request a quote for your Pune-area project. Final details require review.`,
+    title: `${brand} | Custom furniture concepts${local}`,
+    description: `${tagline} Explore furniture concepts, customize your design and request a personal quote. Final details require review.`,
   };
 }

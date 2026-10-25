@@ -76,6 +76,38 @@ export default function ImageManager({
             <p>
               {i + 1}. {image.alt}
             </p>
+            <label>
+              Edit alt text for image {i + 1}
+              <input
+                minLength={3}
+                maxLength={300}
+                value={image.alt}
+                onChange={(e) =>
+                  setImages((current) =>
+                    current.map((m, n) =>
+                      n === i ? { ...m, alt: e.target.value } : m,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <button
+              className="btn secondary small"
+              type="button"
+              disabled={busy || image.alt.trim().length < 3}
+              onClick={() =>
+                void run(
+                  () =>
+                    api(
+                      `/admin/products/${id}/images/text`,
+                      send("PUT", { url: image.url, alt: image.alt }),
+                    ),
+                  "Image description saved.",
+                )
+              }
+            >
+              Save image {i + 1} description
+            </button>
             <small>
               {image.kind === "illustrative"
                 ? "Design concept / illustrative image"

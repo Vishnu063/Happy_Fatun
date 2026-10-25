@@ -11,10 +11,11 @@
     "test:e2e": "playwright test",
     "db:local": "wrangler d1 migrations apply happy-fatun --local",
     "db:remote": "wrangler d1 migrations apply happy-fatun --remote",
-    "deploy": "npm run build && wrangler deploy",
+    "deploy": "npm run build && node scripts/deploy.mjs",
     "owner:hash": "node scripts/owner-hash.mjs",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "deploy:check": "node scripts/deploy.mjs --check"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

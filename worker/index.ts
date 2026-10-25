@@ -1,6 +1,16 @@
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
+import { hmac, equal, passwordHash } from "./crypto";
+import {
+  authenticated,
+  createSession,
+  revokeSession,
+  configuredSecret,
+  developmentHost,
+  SESSION_MS,
+} from "./auth";
+export { passwordHash } from "./crypto";
 export type Env = {
   DB: D1Database;
   ASSETS?: Fetcher;
@@ -15,79 +25,6 @@ export type Env = {
   BUSINESS_PHONE?: string;
 };
 const app = new Hono<{ Bindings: Env; Variables: { session: string } }>();
-const encoder = new TextEncoder();
-const hex = (b: ArrayBuffer) =>
-  Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join(
-    "",
-  );
-async function hmac(value: string, secret: string) {
-  const k = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  return hex(await crypto.subtle.sign("HMAC", k, encoder.encode(value)));
-}
-function equal(a: string, b: string) {
-  let diff = a.length ^ b.length;
-  for (let i = 0; i < Math.max(a.length, b.length); i++)
-    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  return diff === 0;
-}
-export async function passwordHash(password: string, salt: string) {
-  const k = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
-  return hex(
-    await crypto.subtle.deriveBits(
-      {
-        name: "PBKDF2",
-        salt: encoder.encode(salt),
-        iterations: 210000,
-        hash: "SHA-256",
-      },
-      k,
-      256,
-    ),
-  );
-}
-async function authenticated(req: Request, env: Env) {
-  if (
-    !env.SESSION_SECRET ||
-    env.SESSION_SECRET.length < 32 ||
-    !env.OWNER_PASSWORD_HASH
-  )
-    return false;
-  const token = req.headers
-    .get("Cookie")
-    ?.split(";")
-    .map((s) => s.trim())
-    .find((s) => s.startsWith("hf_session="))
-    ?.slice(11);
-  if (!token) return false;
-  const [expires, nonce, signature] = token.split(".");
-  if (
-    !/^\d+$/.test(expires) ||
-    Number(expires) < Date.now() ||
-    Number(expires) > Date.now() + 8 * 3600000 ||
-    !nonce ||
-    !signature
-  )
-    return false;
-  return equal(
-    signature,
-    await hmac(
-      `${expires}.${nonce}.${env.OWNER_PASSWORD_HASH}`,
-      env.SESSION_SECRET,
-    ),
-  );
-}
 async function limited(
   db: D1Database,
   key: string,
@@ -110,6 +47,11 @@ async function limited(
 }
 app.use("/api/*", async (c, next) => {
   c.header("Cache-Control", "no-store");
+  if (c.env.ENVIRONMENT === "development" && !developmentHost(c.req.url))
+    return c.json(
+      { error: "Development configuration is forbidden on a public host." },
+      503,
+    );
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Referrer-Policy", "same-origin");
   if (!["GET", "HEAD"].includes(c.req.method)) {
@@ -214,18 +156,18 @@ app.post("/api/auth/login", async (c) => {
     !equal(await passwordHash(password, salt), expected)
   )
     return c.json({ error: "Incorrect owner credentials." }, 401);
-  const value = `${Date.now() + 8 * 3600000}.${crypto.randomUUID()}`;
-  const token = `${value}.${await hmac(`${value}.${c.env.OWNER_PASSWORD_HASH}`, c.env.SESSION_SECRET)}`;
+  const token = await createSession(c.env);
   c.header(
     "Set-Cookie",
-    `hf_session=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=28800${c.env.ENVIRONMENT === "development" ? "" : "; Secure"}`,
+    `hf_session=${token}; HttpOnly; SameSite=Strict; Path=/api; Max-Age=${SESSION_MS / 1000}${c.env.ENVIRONMENT === "development" ? "" : "; Secure"}`,
   );
   return c.json({ ok: true });
 });
 app.get("/api/auth/session", async (c) =>
   c.json({ authenticated: await authenticated(c.req.raw, c.env) }),
 );
-app.post("/api/auth/logout", (c) => {
+app.post("/api/auth/logout", async (c) => {
+  await revokeSession(c.req.raw, c.env);
   c.header(
     "Set-Cookie",
     `hf_session=; HttpOnly; SameSite=Strict; Path=/api; Max-Age=0${c.env.ENVIRONMENT === "development" ? "" : "; Secure"}`,
@@ -305,11 +247,19 @@ export async function notify(env: Env, id: string) {
     .run();
 }
 app.post("/api/quotes", async (c) => {
+  if (!configuredSecret(c.env))
+    return c.json(
+      {
+        error:
+          "Quote submission is not configured. Please try again after the owner completes setup.",
+      },
+      503,
+    );
   const input = quoteInput.parse(await c.req.json());
   // Use a one-way IP digest; do not persist raw IP addresses.
   const key = await hmac(
     `quote:${c.req.header("CF-Connecting-IP") || "local"}`,
-    c.env.SESSION_SECRET || "public-quote-rate-limiter",
+    c.env.SESSION_SECRET!,
   );
   if (await limited(c.env.DB, key, 10, 3600))
     return c.json({ error: "Too many requests. Please try again later." }, 429);

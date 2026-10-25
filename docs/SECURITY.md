@@ -1,0 +1,10 @@
+# PR #2 security follow-up
+
+Source: owner security review on [PR #2](https://github.com/Vishnu063/Happy_Fatun/pull/2), submitted `2026-10-25T08:27:00Z`, and owner cost-efficient workflow comment (`2026-10-25T08:30:17Z`). No merge or deployment is authorized.
+
+- Quote submission requires a configured signing/rate-limit secret of at least 32 characters. The predictable fallback has been removed; missing or weak configuration returns 503 before any quote or throttle record is written.
+- Owner sessions last one hour. D1 stores a keyed digest of each session nonce and its expiry. Signature, configured owner hash, expiry and an active database row are required on every authenticated request. Successful logout deletes the server record, so copying a cookie does not preserve access after logout. Previously issued stateless sessions are invalidated by this change. Other active sessions are not logged out inadvertently; rotating the signing secret or owner hash still invalidates all sessions.
+- Production cookies remain HttpOnly, Secure, SameSite=Strict. Development configuration is allowed only on exact loopback hostnames. A public host with `ENVIRONMENT=development` fails closed before any API handler runs, including authentication and quotes.
+- `npm run deploy` uses a configuration guard requiring an explicit production environment and rejecting unreviewed CLI variable/config overrides. `npm run deploy:check` validates without deploying. Directly bypassing the wrapper cannot bypass the public-host runtime guard. Cloudflare account policy should also restrict who can publish or change variables.
+
+Focused regressions cover missing/short secrets with zero persistence, copied-cookie revocation and independent sessions, production cookie flags/expiry, public-host development rejection, deployment guard configuration/overrides, anonymous direct writes, absent/cross origins, malformed JSON, PII/secrets in public payloads/logs, and quote/login throttling. See `tests/security.test.ts`. No real credentials, paid service configuration, EC2 actions or live deployment are involved.

@@ -1,54 +1,10 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
 import app, { passwordHash, type Env } from "../worker/index";
-class Statement {
-  constructor(
-    private db: DatabaseSync,
-    private sql: string,
-    private args: unknown[] = [],
-  ) {}
-  bind(...args: unknown[]) {
-    return new Statement(this.db, this.sql, args);
-  }
-  async first() {
-    return this.db.prepare(this.sql).get(...(this.args as [])) ?? null;
-  }
-  async all() {
-    return {
-      results: this.db.prepare(this.sql).all(...(this.args as [])),
-      success: true,
-    };
-  }
-  async run() {
-    return this.db.prepare(this.sql).run(...(this.args as []));
-  }
-}
-class Database {
-  db = new DatabaseSync(":memory:");
-  constructor() {
-    this.db.exec(readFileSync("migrations/0001_initial.sql", "utf8"));
-  }
-  prepare(sql: string) {
-    return new Statement(this.db, sql);
-  }
-  async batch(statements: Statement[]) {
-    this.db.exec("BEGIN");
-    try {
-      const results = [];
-      for (const s of statements) results.push(await s.run());
-      this.db.exec("COMMIT");
-      return results;
-    } catch (e) {
-      this.db.exec("ROLLBACK");
-      throw e;
-    }
-  }
-}
+import { Database } from "./helpers";
 let db: Database;
 let env: Env;
 let cookie: string;
-const origin = "https://furniture.test";
+const origin = "http://127.0.0.1:8787";
 const password = "test-only-owner-password-not-a-deployment-secret";
 async function request(
   path: string,
@@ -393,7 +349,7 @@ describe("production session cookie policy", () => {
     expect(header).toContain("HttpOnly");
     expect(header).toContain("SameSite=Strict");
     expect(header).toContain("Secure");
-    expect(header).toContain("Max-Age=28800");
+    expect(header).toContain("Max-Age=3600");
     cookie = header.split(";")[0];
     const logout = await request("/auth/logout", "POST", undefined, true);
     expect(logout.headers.get("Set-Cookie")).toContain("Max-Age=0");

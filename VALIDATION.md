@@ -33,7 +33,7 @@ Before each follow-on phase, Issue #1, its four owner comments, repository issue
 
 ## Remaining limits
 
-- The long-lived standard development process returned a local 503 after configuration/asset reloads. It was stopped; its restart request was **not executed** because automatic approval review hit a usage limit. The fresh, isolated browser test server passed, but this record does not claim the standard process was successfully restarted.
+- The long-lived development process initially returned 503 after reloads. Its first restart was blocked before execution by an automatic approval review usage limit. After the user continued and approval review recovered, a fresh standard-server restart succeeded: home, catalog (24 designs), descriptive product HTML, sitemap and robots all returned HTTP 200. The product HTML contained its server-rendered heading and canonical link.
 - No production deployment, Cloudflare account/database/bucket provisioning, billing configuration, production secret entry, EC2 activity or outreach occurred. The production D1 ID remains a placeholder. Local R2 emulation is not proof of live storage configuration.
 - No real email delivery, real-world acquisition, physical-device matrix, full manual assistive-technology audit or Core Web Vitals field measurement was verified.
 - Current demo visuals are original designed SVG placeholders, **not AI-generated photos or manufactured stock**. Generic 3D geometry is explicitly illustrative. Owner-approved placeholder-first launch is supported; improved lawful photos/concepts can be swapped through image management after storage is configured.

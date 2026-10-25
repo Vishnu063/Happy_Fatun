@@ -1,0 +1,14 @@
+# Copy to .dev.vars (ignored). Never commit actual secrets.
+ENVIRONMENT=development
+EMAIL_MODE=local
+# Generate with npm run owner:hash, supplying a unique 14+ character password on stdin.
+OWNER_PASSWORD_HASH=
+# Generate a random secret: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+SESSION_SECRET=
+# One recipient only. Set with EMAIL_MODE=resend for real delivery.
+OWNER_EMAIL=
+RESEND_API_KEY=
+EMAIL_FROM=
+# Optional public contact shown only after quote submission.
+BUSINESS_EMAIL=
+BUSINESS_PHONE=

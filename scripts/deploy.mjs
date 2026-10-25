@@ -3,6 +3,15 @@ import { spawnSync } from "node:child_process";
 import ts from "typescript";
 import { validateDeployment } from "../shared/deployment.ts";
 const args = process.argv.slice(2);
+if (process.env.ENVIRONMENT && process.env.ENVIRONMENT !== "production")
+  throw new Error(
+    "Deployment blocked: inherited ENVIRONMENT must be production.",
+  );
+const explicitEnvironment = args.some(
+  (arg) => arg === "--env" || arg === "-e" || arg.startsWith("--env="),
+);
+if (process.env.CLOUDFLARE_ENV && !explicitEnvironment)
+  args.push("--env", process.env.CLOUDFLARE_ENV);
 const parsed = ts.parseConfigFileTextToJson(
   "wrangler.jsonc",
   readFileSync("wrangler.jsonc", "utf8"),
@@ -22,5 +31,5 @@ else {
     ["node_modules/wrangler/bin/wrangler.js", "deploy", ...args],
     { stdio: "inherit" },
   );
-  process.exit(result.status || 0);
+  process.exit(result.status ?? 1);
 }

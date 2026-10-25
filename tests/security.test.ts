@@ -154,6 +154,15 @@ describe("PR #2 owner security findings", () => {
       ["/admin/settings", "PUT"],
       ["/admin/quotes/fake/retry", "POST"],
       ["/admin/products/sofas-1/images/order", "PUT"],
+      ["/admin/products", "POST"],
+      ["/admin/products/sofas-1", "DELETE"],
+      ["/admin/categories/sofas", "PUT"],
+      ["/admin/categories/sofas", "DELETE"],
+      ["/admin/products/sofas-1/images", "POST"],
+      ["/admin/products/sofas-1/images/0", "DELETE"],
+      ["/admin/business", "PUT"],
+      ["/admin/leads/fake", "PUT"],
+      ["/admin/quotes/fake", "PUT"],
     ]) {
       expect((await call(path, method, {})).status).toBe(401);
       expect(
@@ -211,5 +220,50 @@ describe("PR #2 owner security findings", () => {
         (await call("/auth/login", "POST", { password: "wrong" })).status,
       ).toBe(401);
     expect((await call("/auth/login", "POST", { password })).status).toBe(429);
+  });
+});
+
+describe("deployment argument ambiguity", () => {
+  it("rejects joined aliases, duplicate selections and passthrough flags", () => {
+    const config = {
+      vars: { ENVIRONMENT: "production" },
+      env: {
+        live: { vars: { ENVIRONMENT: "production" } },
+        unsafe: { vars: { ENVIRONMENT: "development" } },
+      },
+    };
+    for (const args of [
+      ["-cunsafe.json"],
+      ["-vENVIRONMENT:development"],
+      ["-eunsafe"],
+      ["--env=live", "--env=unsafe"],
+      ["--env="],
+      ["--env", "--dry-run"],
+      ["--", "--var", "ENVIRONMENT:development"],
+    ])
+      expect(() => validateDeployment(config, args)).toThrow();
+    expect(() =>
+      validateDeployment(config, ["--dry-run", "--env", "live"]),
+    ).not.toThrow();
+  });
+});
+
+describe("private owner reads", () => {
+  it("keeps the dashboard, business editor and image metadata owner-only", async () => {
+    for (const path of [
+      "/admin/data",
+      "/admin/business",
+      "/admin/products/sofas-1/images",
+    ])
+      expect((await call(path)).status).toBe(401);
+    await signIn();
+    for (const path of [
+      "/admin/data",
+      "/admin/business",
+      "/admin/products/sofas-1/images",
+    ])
+      expect(
+        (await call(path, "GET", undefined, { Cookie: cookie })).status,
+      ).toBe(200);
   });
 });

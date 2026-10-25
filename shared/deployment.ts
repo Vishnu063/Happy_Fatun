@@ -6,20 +6,26 @@ export function validateDeployment(
   config: DeploymentConfig,
   args: string[] = [],
 ) {
-  if (
-    args.some(
-      (arg) =>
-        /^--(?:var|config)(?:=|$)/.test(arg) || ["-c", "-v"].includes(arg),
-    )
-  )
-    throw new Error(
-      "Configure production variables in the reviewed Wrangler configuration; CLI variable/config overrides are not accepted.",
-    );
-  const envArg = args.find((arg) => arg.startsWith("--env="));
-  const index = args.findIndex((arg) => arg === "--env" || arg === "-e");
-  const name = envArg?.slice(6) || (index >= 0 ? args[index + 1] : undefined);
-  if (index >= 0 && !name) throw new Error("An environment name is required.");
-  const vars = name ? config.env?.[name]?.vars : config.vars;
+  let name: string | undefined;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--dry-run") continue;
+    let selected: string | undefined;
+    if (arg === "--env" || arg === "-e") selected = args[++i];
+    else if (arg.startsWith("--env=")) selected = arg.slice(6);
+    else
+      throw new Error(
+        "Deployment argument blocked. Only --dry-run and one explicit --env/-e selection are supported; configure other options in reviewed Wrangler configuration.",
+      );
+    if (!selected || selected.startsWith("-") || name !== undefined)
+      throw new Error("Select exactly one nonempty deployment environment.");
+    name = selected;
+  }
+  const vars = name
+    ? Object.hasOwn(config.env || {}, name)
+      ? config.env![name].vars
+      : undefined
+    : config.vars;
   if (vars?.ENVIRONMENT !== "production")
     throw new Error(
       "Deployment blocked: the selected environment must explicitly set ENVIRONMENT=production.",

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, send } from "../lib/api";
 import { optimizeImage } from "../lib/images";
 import FurnitureImage from "./FurnitureImage";
+import { imageStorageUnavailable } from "../../shared/media";
 export type GalleryImage = {
   url: string;
   alt: string;
@@ -17,6 +18,9 @@ export default function ImageManager({
   onChange: (urls: string[]) => void;
   onBusy: (busy: boolean) => void;
 }) {
+  const [storageAvailable, setStorageAvailable] = useState<boolean | null>(
+    null,
+  );
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [alt, setAlt] = useState("");
   const [kind, setKind] = useState("illustrative");
@@ -26,10 +30,12 @@ export default function ImageManager({
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   async function refresh() {
-    const data = await api<{ images: GalleryImage[] }>(
-      `/admin/products/${id}/images`,
-    );
+    const data = await api<{
+      images: GalleryImage[];
+      storage_available: boolean;
+    }>(`/admin/products/${id}/images`);
     setImages(data.images);
+    setStorageAvailable(data.storage_available);
     onChange(data.images.map((i) => i.url));
   }
   useEffect(() => {
@@ -54,10 +60,16 @@ export default function ImageManager({
   return (
     <section className="image-manager" aria-label="Product image management">
       <h3>Product gallery</h3>
+      {storageAvailable === false && (
+        <p className="notice" role="status">
+          {imageStorageUnavailable} You can reorder existing images and edit
+          their descriptions.
+        </p>
+      )}
       <p className="muted small">
-        Studio view first, matching room view second. Upload lawful images of
-        the same design. Changes are saved immediately without redeployment;
-        unsaved text and price fields stay in this editor.
+        Studio view first, matching room view second. Use lawful images of the
+        same design. Available gallery changes are saved immediately; unsaved
+        text and price fields stay in this editor.
       </p>
       {error && (
         <p role="alert" className="error">
@@ -153,7 +165,7 @@ export default function ImageManager({
               <button
                 className="btn secondary small danger"
                 type="button"
-                disabled={busy || images.length <= 1}
+                disabled={busy || !storageAvailable || images.length <= 1}
                 aria-label={`Delete image ${i + 1}`}
                 onClick={() => {
                   if (
@@ -184,7 +196,7 @@ export default function ImageManager({
             type="file"
             accept="image/png,image/jpeg,image/webp"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
-            disabled={busy}
+            disabled={busy || !storageAvailable}
           />
         </label>
         <label>
@@ -198,7 +210,11 @@ export default function ImageManager({
         </label>
         <label>
           Image classification
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          <select
+            disabled={!storageAvailable || busy}
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+          >
             <option value="illustrative">
               Design concept / illustrative image
             </option>
@@ -207,7 +223,11 @@ export default function ImageManager({
         </label>
         <label>
           Upload destination
-          <select value={replace} onChange={(e) => setReplace(e.target.value)}>
+          <select
+            disabled={!storageAvailable || busy}
+            value={replace}
+            onChange={(e) => setReplace(e.target.value)}
+          >
             <option value="">Add to gallery</option>
             {images.map((m, i) => (
               <option key={m.url} value={i}>
@@ -222,6 +242,7 @@ export default function ImageManager({
         type="button"
         disabled={
           busy ||
+          !storageAvailable ||
           !file ||
           alt.trim().length < 3 ||
           (!replace && images.length >= 12)

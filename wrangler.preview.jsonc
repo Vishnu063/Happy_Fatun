@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aaranya-living-preview",
+  // Replace these non-secret placeholders only after owner target review.
+  "account_id": "00000000000000000000000000000000",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-01-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "happy-fatun",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "vars": {
+    "ENVIRONMENT": "production",
+    "EMAIL_MODE": "disabled",
+    "PREVIEW_MODE": "true",
+  },
+}

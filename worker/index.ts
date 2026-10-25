@@ -16,10 +16,12 @@ import { publicBusiness, registerLeads } from "./leads";
 import { leadSources } from "../shared/leads";
 import { registerMedia, isImageUpload, MAX_IMAGE_BYTES } from "./media";
 import { flushMediaCleanup } from "./media-cleanup";
+import { imageStorageUnavailable } from "../shared/media";
 export type Env = {
   DB: D1Database;
   ASSETS?: Fetcher;
   ENVIRONMENT?: string;
+  PREVIEW_MODE?: string;
   OWNER_PASSWORD_HASH?: string;
   SESSION_SECRET?: string;
   EMAIL_MODE?: string;
@@ -464,6 +466,11 @@ app.post("/api/admin/products", async (c) => {
   const input = productInput.parse(await c.req.json());
   const id = crypto.randomUUID();
   if (
+    !c.env.PRODUCT_IMAGES &&
+    input.images.some((url) => url.startsWith("/media/"))
+  )
+    return c.json({ error: imageStorageUnavailable }, 503);
+  if (
     !(await c.env.DB.prepare("SELECT id FROM categories WHERE id=?")
       .bind(input.category_id)
       .first())
@@ -542,6 +549,30 @@ app.put("/api/admin/products/:id", async (c) => {
   return c.json({ ok: true });
 });
 app.delete("/api/admin/products/:id", async (c) => {
+  if (!c.env.PRODUCT_IMAGES) {
+    // Check storage dependencies in the deletion itself, avoiding a check/delete race.
+    await c.env.DB.prepare(
+      `DELETE FROM products WHERE id=?
+      AND NOT EXISTS (SELECT 1 FROM media_objects m WHERE m.product_id=products.id)
+      AND NOT EXISTS (SELECT 1 FROM json_each(products.images) WHERE value LIKE '/media/%')`,
+    )
+      .bind(c.req.param("id"))
+      .run();
+    const retained = await c.env.DB.prepare(
+      "SELECT id FROM products WHERE id=?",
+    )
+      .bind(c.req.param("id"))
+      .first();
+    return retained
+      ? c.json(
+          {
+            error:
+              "Deleting products with uploaded images is unavailable in preview. Archive the design instead; its image records are preserved.",
+          },
+          503,
+        )
+      : c.json({ ok: true });
+  }
   await c.env.DB.batch([
     c.env.DB.prepare(
       `INSERT OR IGNORE INTO media_cleanup_queue(storage_key,available_at)

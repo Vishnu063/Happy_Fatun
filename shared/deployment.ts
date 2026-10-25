@@ -31,3 +31,63 @@ export function validateDeployment(
       "Deployment blocked: the selected environment must explicitly set ENVIRONMENT=production.",
     );
 }
+
+export type PreviewConfig = DeploymentConfig & {
+  name?: string;
+  routes?: unknown[];
+  route?: unknown;
+  unsafe?: unknown;
+  account_id?: string;
+  workers_dev?: boolean;
+  r2_buckets?: unknown[];
+  d1_databases?: {
+    binding?: string;
+    database_name?: string;
+    database_id?: string;
+    migrations_dir?: string;
+  }[];
+};
+export function validatePreview(config: PreviewConfig, publishing = false) {
+  validateDeployment(config);
+  if (
+    config.name !== "aaranya-living-preview" ||
+    config.route ||
+    config.routes?.length ||
+    config.unsafe
+  )
+    throw new Error(
+      "Preview must use its reviewed worker name without custom routes or unsafe bindings.",
+    );
+  if (config.r2_buckets?.length || Object.keys(config.env || {}).length)
+    throw new Error("Preview must have no R2 binding or named environments.");
+  if (
+    config.workers_dev !== true ||
+    config.vars?.PREVIEW_MODE !== "true" ||
+    config.vars?.EMAIL_MODE !== "disabled"
+  )
+    throw new Error(
+      "Preview requires workers.dev, PREVIEW_MODE=true and disabled email.",
+    );
+  const databases = config.d1_databases || [];
+  if (
+    databases.length !== 1 ||
+    databases[0].binding !== "DB" ||
+    databases[0].database_name !== "happy-fatun" ||
+    databases[0].migrations_dir !== "migrations"
+  )
+    throw new Error(
+      "Preview must bind only the reviewed happy-fatun database as DB.",
+    );
+  if (
+    publishing &&
+    (!/^[a-f0-9]{32}$/i.test(config.account_id || "") ||
+      /^0+$/.test(config.account_id!) ||
+      !/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(
+        databases[0].database_id || "",
+      ) ||
+      /^0{8}-(?:0{4}-){3}0{12}$/.test(databases[0].database_id!))
+  )
+    throw new Error(
+      "Preview publication blocked: set the owner-reviewed non-secret account_id and existing D1 database_id first.",
+    );
+}

@@ -17,10 +17,15 @@ jobs:
       - run: npm ci
       - run: npm run format:check
       - run: npm run deploy:check
+      - run: npm run preview:check
       - run: npm run build
+      - run: node scripts/deploy.mjs --preview --dry-run
+        env:
+          WRANGLER_SEND_METRICS: "false"
       - run: npm test
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e -- --reporter=github,line
+      - run: npm run test:e2e:preview -- --reporter=github,line
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -1137,3 +1137,146 @@ describe("interrupted image write reconciliation", () => {
     ).toBe(0);
   });
 });
+
+describe("no-R2 preview safety", () => {
+  it("disables storage mutations without changing galleries or cleanup records, retaining safe D1 gallery edits", async () => {
+    env.EMAIL_MODE = "disabled";
+    expect((await request("/quotes", "POST", quote())).status).toBe(201);
+    await login();
+    const before = String(
+      db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+        ?.images,
+    );
+    const gallery = await (
+      await request("/admin/products/sofas-1/images", "GET", undefined, true)
+    ).json<any>();
+    expect(gallery.storage_available).toBe(false);
+    for (const response of [
+      await uploadImage(),
+      await request(
+        "/admin/products/sofas-1/images/0",
+        "DELETE",
+        undefined,
+        true,
+      ),
+      await request("/admin/media/cleanup", "POST", {}, true),
+    ]) {
+      expect(response.status).toBe(503);
+      expect((await response.json<any>()).error).toContain(
+        "unavailable in preview",
+      );
+    }
+    expect(
+      db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+        ?.images,
+    ).toBe(before);
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(0);
+    expect(db.db.prepare("SELECT COUNT(*) n FROM media_objects").get()?.n).toBe(
+      0,
+    );
+    const images = JSON.parse(before).reverse();
+    expect(
+      (
+        await request(
+          "/admin/products/sofas-1/images/order",
+          "PUT",
+          { images },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await request(
+          "/admin/products/sofas-1/images/text",
+          "PUT",
+          { url: images[0], alt: "Preview static illustration description" },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    expect(db.db.prepare("SELECT COUNT(*) n FROM quotes").get()?.n).toBe(1);
+    expect(
+      db.db.prepare("SELECT email_status FROM quotes").get()?.email_status,
+    ).toBe("disabled");
+    const stored = db.db.prepare("SELECT configuration FROM quotes").get()!;
+    expect(JSON.parse(String(stored.configuration))).toEqual(
+      quote().configuration,
+    );
+  });
+  it("preserves uploaded-image products when R2 is removed, permits safe price/archive edits, and refuses new broken media references", async () => {
+    const bucket = new ImageBucket();
+    env.PRODUCT_IMAGES = bucket as unknown as R2Bucket;
+    await login();
+    const { url } = await (await uploadImage()).json<any>();
+    delete env.PRODUCT_IMAGES;
+    const before = String(
+      db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+        ?.images,
+    );
+    expect(
+      (await request("/admin/products/sofas-1", "DELETE", undefined, true))
+        .status,
+    ).toBe(503);
+    expect(
+      db.db.prepare("SELECT images FROM products WHERE id='sofas-1'").get()
+        ?.images,
+    ).toBe(before);
+    expect(db.db.prepare("SELECT COUNT(*) n FROM media_objects").get()?.n).toBe(
+      1,
+    );
+    expect(
+      db.db.prepare("SELECT COUNT(*) n FROM media_cleanup_queue").get()?.n,
+    ).toBe(0);
+    expect(bucket.objects.size).toBe(1);
+    const { products } = await (
+      await request("/admin/data", "GET", undefined, true)
+    ).json<any>();
+    const { id, ...product } = products.find(
+      (p: { id: string }) => p.id === "sofas-1",
+    );
+    expect(
+      (
+        await request(
+          "/admin/products",
+          "POST",
+          { ...product, name: "Blocked media reference", images: [url] },
+          true,
+        )
+      ).status,
+    ).toBe(503);
+    expect(
+      (
+        await request(
+          "/admin/products/" + id,
+          "PUT",
+          { ...product, price: 750000, status: "archived" },
+          true,
+        )
+      ).status,
+    ).toBe(200);
+    const after = db.db
+      .prepare("SELECT images,price,status FROM products WHERE id=?")
+      .get(id)!;
+    expect(after).toMatchObject({
+      images: before,
+      price: 750000,
+      status: "archived",
+    });
+    expect(db.db.prepare("SELECT COUNT(*) n FROM media_objects").get()?.n).toBe(
+      1,
+    );
+    // Even legacy media URLs without registry rows must not be silently discarded.
+    db.db
+      .prepare(
+        "UPDATE products SET images='[\"/media/legacy-reference\"]' WHERE id='beds-1'",
+      )
+      .run();
+    expect(
+      (await request("/admin/products/beds-1", "DELETE", undefined, true))
+        .status,
+    ).toBe(503);
+  });
+});

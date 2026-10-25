@@ -25,7 +25,9 @@ const escape = (s: string) =>
 export function registerSEO(app: App) {
   app.get("/robots.txt", (c) =>
     c.text(
-      `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\nDisallow: /api/auth/\nSitemap: ${new URL(c.req.url).origin}/sitemap.xml\n`,
+      c.env.PREVIEW_MODE === "true"
+        ? "User-agent: *\nDisallow: /\n"
+        : `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin/\nDisallow: /api/auth/\nSitemap: ${new URL(c.req.url).origin}/sitemap.xml\n`,
     ),
   );
   app.get("/sitemap.xml", async (c) => {
@@ -119,7 +121,10 @@ export function registerSEO(app: App) {
       category,
       (await publicBusiness(c.env)).service_area,
     );
-    const noindex = status === 404 || path.startsWith("/admin");
+    const noindex =
+      c.env.PREVIEW_MODE === "true" ||
+      status === 404 ||
+      path.startsWith("/admin");
     const asset = await c.env.ASSETS.fetch(
       new Request(new URL("/", url), c.req.raw),
     );

@@ -27,7 +27,7 @@ export default function StorageCleanup() {
           ready for cleanup.{" "}
           {status.configured
             ? "Image storage configured."
-            : "Image storage is not configured."}
+            : "Cleanup is unavailable in preview because image storage is not configured. Existing cleanup records are preserved."}
         </p>
       )}
       <p>

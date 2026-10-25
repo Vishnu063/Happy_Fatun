@@ -16,7 +16,13 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "brief": "node scripts/github-brief.mjs",
-    "deploy:check": "node scripts/deploy.mjs --check"
+    "deploy:check": "node scripts/deploy.mjs --check",
+    "dev:preview": "wrangler dev --local --config wrangler.preview.jsonc --port 8787",
+    "preview:check": "node scripts/deploy.mjs --preview --check",
+    "preview:dry-run": "npm run build && node scripts/deploy.mjs --preview --dry-run",
+    "deploy:preview": "npm run build && node scripts/deploy.mjs --preview",
+    "test:e2e:preview": "playwright test --config playwright.preview.config.ts",
+    "db:preview:local": "wrangler d1 migrations apply happy-fatun --local --config wrangler.preview.jsonc"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.0",

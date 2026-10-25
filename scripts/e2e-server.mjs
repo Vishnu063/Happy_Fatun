@@ -1,21 +1,33 @@
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { pbkdf2Sync, randomBytes } from "node:crypto";
+import ts from "typescript";
+import { validatePreview } from "../shared/deployment.ts";
 const root = process.cwd();
+const noR2 = process.argv.includes("--no-r2");
+const previewConfig = noR2
+  ? ts.parseConfigFileTextToJson(
+      "wrangler.preview.jsonc",
+      readFileSync("wrangler.preview.jsonc", "utf8"),
+    ).config
+  : {};
+if (noR2) validatePreview(previewConfig);
 const temp = mkdtempSync(join(tmpdir(), "happy-fatun-e2e-"));
 const cli = resolve("node_modules/wrangler/bin/wrangler.js");
 const salt = randomBytes(16).toString("hex");
 const password = "e2e-only-owner-password-not-for-production";
 writeFileSync(
   join(temp, ".dev.vars"),
-  `ENVIRONMENT=development\nEMAIL_MODE=local\nOWNER_PASSWORD_HASH=${salt}:${pbkdf2Sync(password, salt, 210000, 32, "sha256").toString("hex")}\nSESSION_SECRET=${randomBytes(32).toString("hex")}\n`,
+  `ENVIRONMENT=development\nEMAIL_MODE=${noR2 ? "disabled" : "local"}\nOWNER_PASSWORD_HASH=${salt}:${pbkdf2Sync(password, salt, 210000, 32, "sha256").toString("hex")}\nSESSION_SECRET=${randomBytes(32).toString("hex")}\n`,
   { mode: 0o600 },
 );
 writeFileSync(
   join(temp, "wrangler.json"),
   JSON.stringify({
+    ...previewConfig,
+    account_id: undefined,
     name: "happy-fatun-e2e",
     main: join(root, "worker/index.ts"),
     compatibility_date: "2026-01-01",
@@ -25,9 +37,13 @@ writeFileSync(
       not_found_handling: "single-page-application",
       run_worker_first: true,
     },
-    r2_buckets: [
-      { binding: "PRODUCT_IMAGES", bucket_name: "aaranya-test-images" },
-    ],
+    ...(!noR2
+      ? {
+          r2_buckets: [
+            { binding: "PRODUCT_IMAGES", bucket_name: "aaranya-test-images" },
+          ],
+        }
+      : {}),
     d1_databases: [
       {
         binding: "DB",

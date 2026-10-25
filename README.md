@@ -6,6 +6,14 @@ Working brand approved in Issue #1; repository slug remains `Happy_Fatun`. No tr
 
 A mobile-first furniture concept catalog and private owner studio, implementing [Issue #1](https://github.com/Vishnu063/Happy_Fatun/issues/1). Customers request quotations; there is **no checkout or payment flow**.
 
+## Free Workers + D1 preview (owner-approved preparation)
+
+The owner chose a preview **without R2**. Use [the exact deployment runbook](docs/FREE_PREVIEW_DEPLOYMENT.md) and `wrangler.preview.jsonc`: no bucket binding, production authentication guards, disabled email, and noindex preview pages. The account ID and existing `happy-fatun` D1 ID are non-secret placeholders awaiting owner review. The owner reports those cloud resources exist; Codex has not accessed or changed them.
+
+Local commands: `npm run preview:check`, `npm run preview:dry-run`, `npm run db:preview:local`, and `npm run dev:preview`. The first two validate/bundle without publishing; the database command is explicitly local. `npm run test:e2e:preview` verifies the no-bucket workflow against isolated local D1. Future `npm run deploy:preview` is gated on reviewed identifiers and **separate owner approval**; no remote migration or deployment was performed.
+
+Static galleries, quotes, owner login, prices/specifications, SEO, leads and contact edits remain available. Without storage, upload/replace/image-delete/cleanup are disabled with a clear owner message. Existing gallery order and alt text can be edited safely. Uploaded-image product records are preserved; archive instead of deleting them. No R2 activation is needed for the preview. The original R2 deployment reference remains opt-in for later approval. Preview quotations show email disabled; this is not verified email delivery or a full production launch.
+
 ## Architecture and tradeoffs
 
 - **React + TypeScript + Tailwind + Vite**: reusable product cards, gallery, customization form, and admin editors. The owner studio and Three.js viewer load on demand.
@@ -60,7 +68,7 @@ The public catalog works without owner credentials. Quote submission requires a 
 | `npm run db:remote` | Apply migrations to the configured remote D1; review target first               |
 | `npm run deploy`    | Build and deploy to your authenticated Cloudflare account                       |
 
-E2E tests require a build first. They use `/usr/bin/chromium` if available; otherwise run `npx playwright install chromium`. They create a temporary local database and **test-only** owner credentials outside the checkout, then remove them. Your `.dev.vars`, development database and production data are not touched. Desktop and mobile run serially because they share the isolated test database. Screenshots/traces are in ignored `test-results/`; traces may contain test fixture data. Final local audit verification: **50 API/security/SEO tests and all 18 desktop/mobile browser cases passed**, with zero dependency audit findings. Formatting, production build, non-deploying guard and local migration/repeat checks passed. See `VALIDATION.md` for actual observed outcomes and boundaries; commit-specific CI is recorded on PR #2.
+E2E tests require a build first. They use `/usr/bin/chromium` if available; otherwise run `npx playwright install chromium`. They create a temporary local database and **test-only** owner credentials outside the checkout, then remove them. Your `.dev.vars`, development database and production data are not touched. Desktop and mobile run serially because they share the isolated test database. Screenshots/traces are in ignored `test-results/`; traces may contain test fixture data. Latest local verification: **55 API/security/SEO/configuration tests, all 18 regression browser cases and both no-R2 preview browser cases passed**, with zero dependency audit findings. Formatting, production build, non-deploying guard and local migration/repeat checks passed. See `VALIDATION.md` for actual observed outcomes and boundaries; commit-specific CI is recorded on PR #2.
 
 ## Catalog growth, 3D and reliable image cleanup
 
@@ -112,7 +120,7 @@ See `docs/LOCAL_ACQUISITION.md` for the post-launch owner checklist. Source attr
 
 Delivery states: `pending`, `sending`, `sent`, `failed`, `disabled`, `local`. The owner can retry in the inquiry details. Already-sent messages are not resent; stale `sending` claims become retryable after five minutes. Provider errors are not logged with request bodies or customer data. A provider outage never discards a saved inquiry. Check `failed`/`disabled` inquiries in the studio if email is unavailable. Real email needs a Resend account, verified sender and valid key; local mode is not proof of external delivery. No SMS service is required.
 
-## Deployment reference (only after explicit owner authorization)
+## Opt-in R2 deployment reference (future separate owner approval)
 
 1. Create a Cloudflare account and authenticate Wrangler on your own machine (`npx wrangler login`), or configure a scoped CI token securely.
 2. Run `npx wrangler d1 create happy-fatun`. Replace **only** the placeholder `database_id` in `wrangler.jsonc` with the returned ID. Do not deploy the local placeholder. Review your account/database target.

@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import type { Env } from "./index";
+import { imageStorageUnavailable } from "../shared/media";
 import {
   queueRetiredMedia,
   flushMediaCleanup,
@@ -148,7 +149,7 @@ export function registerMedia(app: App) {
   );
   app.post("/api/admin/media/cleanup", async (c) => {
     if (!c.env.PRODUCT_IMAGES)
-      return c.json({ error: "Image storage is not configured." }, 503);
+      return c.json({ error: imageStorageUnavailable }, 503);
     await queueRetiredMedia(c.env);
     await flushMediaCleanup(c.env);
     return c.json(await mediaCleanupStatus(c.env));
@@ -162,7 +163,10 @@ export function registerMedia(app: App) {
   app.get("/api/admin/products/:id/images", async (c) => {
     const result = await gallery(c.env, c.req.param("id"));
     return result
-      ? c.json({ images: result.images })
+      ? c.json({
+          images: result.images,
+          storage_available: Boolean(c.env.PRODUCT_IMAGES),
+        })
       : c.json({ error: "Design not found." }, 404);
   });
   app.get("/media/:id", async (c) => {
@@ -193,7 +197,7 @@ export function registerMedia(app: App) {
     }),
     async (c) => {
       if (!c.env.PRODUCT_IMAGES)
-        return c.json({ error: "Image storage is not configured." }, 503);
+        return c.json({ error: imageStorageUnavailable }, 503);
       const p = await product(c.env, c.req.param("id"));
       if (!p) return c.json({ error: "Design not found." }, 404);
       const images = JSON.parse(p.images) as string[];
@@ -310,6 +314,8 @@ export function registerMedia(app: App) {
       : c.json({ error: "Gallery changed. Reload and retry." }, 409);
   });
   app.delete("/api/admin/products/:id/images/:index", async (c) => {
+    if (!c.env.PRODUCT_IMAGES)
+      return c.json({ error: imageStorageUnavailable }, 503);
     const p = await product(c.env, c.req.param("id"));
     if (!p) return c.json({ error: "Design not found." }, 404);
     const images = JSON.parse(p.images) as string[];

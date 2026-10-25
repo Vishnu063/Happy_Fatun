@@ -193,3 +193,21 @@ describe("owner SEO request: factual landing pages and editable metadata", () =>
     );
   });
 });
+
+describe("preview indexing safeguards", () => {
+  it("retains metadata and sitemap but prevents preview indexing", async () => {
+    env.PREVIEW_MODE = "true";
+    const response = await get("/design/aara-lounge-sofa/sofas-1");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
+    const html = await response.text();
+    expect(html).toContain(
+      "<title>Aara lounge sofa | Furniture design | Aaranya Living</title>",
+    );
+    expect(html).toContain('rel="canonical"');
+    expect(await (await get("/robots.txt")).text()).toBe(
+      "User-agent: *\nDisallow: /\n",
+    );
+    expect((await get("/sitemap.xml")).status).toBe(200);
+  });
+});

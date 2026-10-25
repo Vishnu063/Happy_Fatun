@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
 export default defineConfig({
   testDir: "./tests/e2e",
+  testMatch: "smoke.spec.ts",
   workers: 1,
   fullyParallel: false,
   timeout: 45000,

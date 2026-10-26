@@ -1,0 +1,58 @@
+{
+  "name": "happy-fatun",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:api": "wrangler dev --port 8787",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:local": "wrangler d1 migrations apply happy-fatun --local",
+    "db:remote": "wrangler d1 migrations apply happy-fatun --remote",
+    "deploy": "npm run build && node scripts/deploy.mjs",
+    "owner:hash": "node scripts/owner-hash.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "brief": "node scripts/github-brief.mjs",
+    "deploy:check": "node scripts/deploy.mjs --check",
+    "dev:preview": "wrangler dev --local --config wrangler.preview.jsonc --port 8787",
+    "preview:check": "node scripts/deploy.mjs --preview --check",
+    "preview:dry-run": "npm run build && node scripts/deploy.mjs --preview --dry-run",
+    "deploy:preview": "npm run build && node scripts/deploy.mjs --preview",
+    "test:e2e:preview": "playwright test --config playwright.preview.config.ts",
+    "db:preview:local": "wrangler d1 migrations apply happy-fatun --local --config wrangler.preview.jsonc"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.1.0",
+    "hono": "^4.10.0",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.1.0",
+    "three": "^0.180.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@cloudflare/workers-types": "^5.20261019.1",
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/three": "^0.180.0",
+    "@vitejs/plugin-react": "^4.7.0",
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.0",
+    "vite": "^6.4.0",
+    "vitest": "^5.0.5",
+    "wrangler": "4.152.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "overrides": {
+    "undici": "7.30.1"
+  }
+}

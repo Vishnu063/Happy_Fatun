@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "happy-fatun",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-01-01",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true,
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "happy-fatun",
+      "database_id": "local-placeholder-replace-before-deployment",
+      "migrations_dir": "migrations",
+    },
+  ],
+  "r2_buckets": [
+    { "binding": "PRODUCT_IMAGES", "bucket_name": "aaranya-product-images" },
+  ],
+  "vars": { "ENVIRONMENT": "production", "EMAIL_MODE": "disabled" },
+}

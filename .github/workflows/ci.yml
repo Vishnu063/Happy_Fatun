@@ -1,0 +1,37 @@
+name: Build and verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: bash scripts/lint-workflows.sh
+      - run: npm ci
+      - run: npm run format:check
+      - run: npm run deploy:check
+      - run: npm run preview:check
+      - run: npm run build
+      - run: node scripts/deploy.mjs --preview --dry-run
+        env:
+          WRANGLER_SEND_METRICS: "false"
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- --reporter=github,line
+      - run: npm run test:e2e:preview -- --reporter=github,line
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results
+          path: test-results
+          retention-days: 7

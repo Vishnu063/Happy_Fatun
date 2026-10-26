@@ -2,6 +2,8 @@
 
 Prepared for [the owner's no-R2 decision](https://github.com/Vishnu063/Happy_Fatun/pull/2#issuecomment-6403374627). These are **future operator instructions**, not evidence of deployment. No remote migration, secret installation, account change, paid-service activation or deployment was performed by Codex.
 
+Manual Actions option: [secure manual workflow setup](MANUAL_CLOUDFLARE_DEPLOYMENT.md) documents the two ID variables, required environment reviewers and exact reviewed SHA. It never combines deployment with migrations or secret installation. The CLI procedure below remains a separate owner-authorized path; no workflow was dispatched.
+
 ## What is prepared and verified locally
 
 `wrangler.preview.jsonc` uses Worker `aaranya-living-preview`, the existing database name `happy-fatun` bound as `DB`, built static files as `ASSETS`, and **no R2 binding**. `ENVIRONMENT=production` retains production authentication/cookie guards. `EMAIL_MODE=disabled` persists inquiries without sending mail. `PREVIEW_MODE=true` preserves SEO metadata/canonical/sitemap generation but sets HTML noindex and disallows crawling; this is a preview, not a search-index launch. Noindex is not access control: anyone with its public URL can browse and submit an inquiry once configured.

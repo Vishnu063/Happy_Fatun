@@ -91,3 +91,19 @@ export function validatePreview(config: PreviewConfig, publishing = false) {
       "Preview publication blocked: set the owner-reviewed non-secret account_id and existing D1 database_id first.",
     );
 }
+
+/** Wrangler's inherited target selectors must never override the reviewed config. */
+export function validatePreviewTargetEnvironment(
+  config: PreviewConfig,
+  account?: string,
+  database?: string,
+) {
+  if (
+    (account !== undefined && account !== config.account_id) ||
+    (database !== undefined &&
+      database !== config.d1_databases?.[0].database_id)
+  )
+    throw new Error(
+      "Preview deployment blocked: inherited account/database differs from the reviewed config.",
+    );
+}

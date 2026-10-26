@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import ts from "typescript";
-import { validateDeployment, validatePreview } from "../shared/deployment.ts";
+import {
+  validateDeployment,
+  validatePreview,
+  validatePreviewTargetEnvironment,
+} from "../shared/deployment.ts";
 const supplied = process.argv.slice(2);
 const preview = supplied.includes("--preview");
 if (supplied.filter((arg) => arg === "--preview").length > 1)
@@ -40,6 +44,12 @@ if (preview)
   validatePreview(
     parsed.config,
     !args.includes("--check") && !args.includes("--dry-run"),
+  );
+if (preview)
+  validatePreviewTargetEnvironment(
+    parsed.config,
+    process.env.CLOUDFLARE_ACCOUNT_ID,
+    process.env.CLOUDFLARE_D1_DATABASE_ID,
   );
 if (args.includes("--check"))
   console.log(

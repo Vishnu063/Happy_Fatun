@@ -54,7 +54,7 @@ describe("public SEO documents and descriptive URLs", () => {
   });
   it("generates sitemap/robots from current public records and keeps owner pages out of indexes", async () => {
     const sitemap = await (await get("/sitemap.xml")).text();
-    expect(sitemap.match(/<loc>/g)).toHaveLength(39);
+    expect(sitemap.match(/<loc>/g)).toHaveLength(45);
     expect(sitemap).toContain("/design/aara-lounge-sofa/sofas-1");
     expect(sitemap).not.toContain("/admin");
     const robots = await (await get("/robots.txt")).text();
@@ -138,11 +138,11 @@ describe("owner SEO request: factual landing pages and editable metadata", () =>
   });
   it("serves distinct useful intent content, crawlable current product links and original guides", async () => {
     const cases = [
-      ["sofas/sofas", "usable seat depth"],
+      ["dining-tables/dining", "chairs pulled out"],
       ["beds/beds", "mattress"],
-      ["dining/dining", "chairs pulled out"],
+      ["chairs/chairs", "seat height"],
       ["wardrobes/wardrobes", "sliding access"],
-      ["custom-furniture/custom", "unusual space"],
+      ["coffee-tables/coffee-tables", "knee clearance"],
     ];
     const htmls = [];
     for (const [path, phrase] of cases) {
@@ -154,13 +154,13 @@ describe("owner SEO request: factual landing pages and editable metadata", () =>
       htmls.push(html);
     }
     expect(new Set(htmls).size).toBe(5);
-    expect(htmls[0]).toContain('href="/design/aara-lounge-sofa/sofas-1"');
+    expect(htmls[0]).toContain('href="/design/gather-dining-table/dining-1"');
     db.db
-      .prepare("UPDATE products SET status='archived' WHERE id='sofas-1'")
+      .prepare("UPDATE products SET status='archived' WHERE id='dining-1'")
       .run();
-    expect(await (await get("/collections/sofas/sofas")).text()).not.toContain(
-      'href="/design/aara-lounge-sofa/sofas-1"',
-    );
+    expect(
+      await (await get("/collections/dining-tables/dining")).text(),
+    ).not.toContain('href="/design/gather-dining-table/dining-1"');
     for (const path of [
       "/guides",
       "/guides/measure-for-furniture",
@@ -175,7 +175,7 @@ describe("owner SEO request: factual landing pages and editable metadata", () =>
     }
     expect((await get("/guides/not-a-guide")).status).toBe(404);
     expect(await (await get("/")).text()).toContain(
-      'href="/collections/sofas/sofas"',
+      'href="/collections/dining-tables/dining"',
     );
   });
   it("makes no default geographic claims and uses only configured owner service area", async () => {

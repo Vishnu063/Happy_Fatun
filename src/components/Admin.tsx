@@ -14,8 +14,10 @@ import ImageManager from "./ImageManager";
 import LeadPanel from "./LeadPanel";
 import BusinessEditor from "./BusinessEditor";
 import StorageCleanup from "./StorageCleanup";
+import SupplierPanel from "./SupplierPanel";
 type Quote = {
   id: string;
+  product_id: string;
   reference: string;
   name: string;
   email: string;
@@ -69,6 +71,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [supplierProduct, setSupplierProduct] = useState<string | undefined>();
   const [tab, setTab] = useState("inquiries");
   const [editing, setEditing] = useState<Product | null>(null);
   const [query, setQuery] = useState("");
@@ -245,6 +248,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
           "leads",
           "products",
           "categories",
+          "suppliers",
           "price history",
           "settings",
         ].map((t) => (
@@ -253,12 +257,13 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
             className={tab === t ? "active" : ""}
             onClick={() => {
               setTab(t);
+              if (t === "suppliers") setSupplierProduct(undefined);
               setEditing(null);
               setNotice("");
               setError("");
             }}
           >
-            {t}
+            {t === "suppliers" ? "shops & suppliers" : t}
           </button>
         ))}
       </div>
@@ -278,6 +283,12 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
         </button>
       ) : (
         <>
+          {tab === "suppliers" && (
+            <SupplierPanel
+              products={data.products}
+              productId={supplierProduct}
+            />
+          )}
           {tab === "leads" && (
             <LeadPanel
               leads={data.quotes}
@@ -310,7 +321,9 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                   >
                     <option value="all">All statuses</option>
                     {statuses.map((s) => (
-                      <option key={s}>{s}</option>
+                      <option key={s} value={s}>
+                        {s === "Reviewing" ? "Contacted" : s}
+                      </option>
                     ))}
                   </select>
                 </label>
@@ -320,7 +333,7 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                   .filter(
                     (q) =>
                       (status === "all" || q.status === status) &&
-                      `${q.reference} ${q.name} ${q.area} ${q.product_snapshot.name}`
+                      `${q.reference} ${q.name} ${q.phone} ${q.email} ${q.area} ${q.product_snapshot.name}`
                         .toLowerCase()
                         .includes(query.toLowerCase()),
                   )
@@ -345,6 +358,20 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                         )
                           setNotice(String(result.warning));
                       }}
+                      compare={() => {
+                        setSupplierProduct(q.product_id);
+                        setTab("suppliers");
+                      }}
+                      erase={() =>
+                        void action(
+                          () =>
+                            api(
+                              `/admin/quotes/${q.id}/personal-data`,
+                              send("DELETE"),
+                            ),
+                          "Inquiry contact details and notes removed; commercial record retained.",
+                        )
+                      }
                       retry={() =>
                         void action(
                           () =>
@@ -426,6 +453,18 @@ export default function Admin({ onChange }: { onChange: () => unknown }) {
                                 aria-label={`Edit ${p.name}`}
                               >
                                 <Pencil size={15} /> Edit
+                              </button>
+                              <button
+                                className="btn secondary small"
+                                type="button"
+                                aria-label={`Suppliers for ${p.name}`}
+                                onClick={() => {
+                                  setSupplierProduct(p.id);
+                                  setTab("suppliers");
+                                  setEditing(null);
+                                }}
+                              >
+                                Suppliers
                               </button>
                               <button
                                 className="icon danger"
@@ -680,233 +719,236 @@ function ProductEditor({
     setP((v) => ({ ...v, [key]: value }));
   }
   return (
-    <form
-      className="editor"
-      onSubmit={(e) => {
-        e.preventDefault();
-        const { id, internal_cost, ...rest } = p;
-        void save({
-          ...rest,
-          images: images
-            .split("\n")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          colors: colors
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          materials: materials
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean),
-          internal_cost: internal_cost ?? 0,
-        });
-      }}
-    >
-      <div className="section-heading">
-        <h2>{p.id ? "Edit design" : "A new design"}</h2>
-        <button className="btn secondary" type="button" onClick={cancel}>
-          Cancel
-        </button>
-      </div>
-      <div className="two-fields">
-        <label>
-          Design name
-          <input
-            required
-            minLength={2}
-            maxLength={120}
-            value={p.name}
-            onChange={(e) => update("name", e.target.value)}
-          />
-        </label>
-        <label>
-          Category
-          <select
-            value={p.category_id}
-            onChange={(e) => update("category_id", e.target.value)}
-          >
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <label>
-        Description
-        <textarea
-          required
-          minLength={10}
-          maxLength={3000}
-          rows={3}
-          value={p.description}
-          onChange={(e) => update("description", e.target.value)}
-        />
-      </label>
-      <fieldset>
-        <legend>Search listing (optional)</legend>
-        <label>
-          SEO title
-          <input
-            maxLength={70}
-            value={p.seo_title || ""}
-            onChange={(e) => update("seo_title", e.target.value)}
-          />
-        </label>
-        <label>
-          Meta description
-          <textarea
-            maxLength={180}
-            rows={2}
-            value={p.seo_description || ""}
-            onChange={(e) => update("seo_description", e.target.value)}
-          />
-        </label>
-        <p className="muted small">
-          Leave blank for defaults. Describe this design truthfully; use only
-          verified service areas.
-        </p>
-      </fieldset>
-      <div className="three-fields">
-        <label>
-          Starting price (₹, blank = on request)
-          <input
-            type="number"
-            min="0"
-            max="1000000"
-            step="0.01"
-            value={p.price === null ? "" : p.price / 100}
-            onChange={(e) =>
-              update(
-                "price",
-                e.target.value === ""
-                  ? null
-                  : Math.round(Number(e.target.value) * 100),
-              )
-            }
-          />
-        </label>
-        <label>
-          Internal cost (₹, private)
-          <input
-            type="number"
-            min="0"
-            max="1000000"
-            step="0.01"
-            value={(p.internal_cost ?? 0) / 100}
-            onChange={(e) =>
-              update("internal_cost", Math.round(Number(e.target.value) * 100))
-            }
-          />
-        </label>
-        <label>
-          Status
-          <select
-            value={p.status}
-            onChange={(e) => update("status", e.target.value)}
-          >
-            <option value="concept">Demo concept</option>
-            <option value="available">Available (owner approved)</option>
-            <option value="archived">Archived (hidden)</option>
-          </select>
-        </label>
-      </div>
-      <div className="three-fields">
-        {(["length", "width", "height"] as const).map((k) => (
-          <label key={k}>
-            {k[0].toUpperCase() + k.slice(1)} (cm)
+    <>
+      <form
+        className="editor"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const { id, internal_cost, ...rest } = p;
+          void save({
+            ...rest,
+            images: images
+              .split("\n")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            colors: colors
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            materials: materials
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean),
+            internal_cost: internal_cost ?? 0,
+          });
+        }}
+      >
+        <div className="section-heading">
+          <h2>{p.id ? "Edit design" : "A new design"}</h2>
+          <button className="btn secondary" type="button" onClick={cancel}>
+            Cancel
+          </button>
+        </div>
+        <div className="two-fields">
+          <label>
+            Design name
             <input
               required
-              type="number"
-              min={k === "height" ? 10 : 20}
-              max={k === "length" ? 500 : 300}
-              step="0.1"
-              value={p[k]}
-              onChange={(e) => update(k, Number(e.target.value))}
+              minLength={2}
+              maxLength={120}
+              value={p.name}
+              onChange={(e) => update("name", e.target.value)}
             />
           </label>
-        ))}
-      </div>
-      <div className="two-fields">
+          <label>
+            Category
+            <select
+              value={p.category_id}
+              onChange={(e) => update("category_id", e.target.value)}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <label>
-          Primary material
-          <input
+          Description
+          <textarea
             required
-            maxLength={80}
-            value={p.material}
-            onChange={(e) => update("material", e.target.value)}
+            minLength={10}
+            maxLength={3000}
+            rows={3}
+            value={p.description}
+            onChange={(e) => update("description", e.target.value)}
           />
         </label>
-        <label>
-          Finish
-          <input
-            required
-            maxLength={80}
-            value={p.finish}
-            onChange={(e) => update("finish", e.target.value)}
+        <fieldset>
+          <legend>Search listing (optional)</legend>
+          <label>
+            SEO title
+            <input
+              maxLength={70}
+              value={p.seo_title || ""}
+              onChange={(e) => update("seo_title", e.target.value)}
+            />
+          </label>
+          <label>
+            Meta description
+            <textarea
+              maxLength={180}
+              rows={2}
+              value={p.seo_description || ""}
+              onChange={(e) => update("seo_description", e.target.value)}
+            />
+          </label>
+          <p className="muted small">
+            Leave blank for defaults. Describe this design truthfully; use only
+            verified service areas.
+          </p>
+        </fieldset>
+        <div className="three-fields">
+          <label>
+            Starting price (₹, blank = on request)
+            <input
+              type="number"
+              min="0"
+              max="1000000"
+              step="0.01"
+              value={p.price === null ? "" : p.price / 100}
+              onChange={(e) =>
+                update(
+                  "price",
+                  e.target.value === ""
+                    ? null
+                    : Math.round(Number(e.target.value) * 100),
+                )
+              }
+            />
+          </label>
+          <label>
+            Internal cost (₹, private)
+            <input
+              type="number"
+              min="0"
+              max="1000000"
+              step="0.01"
+              value={(p.internal_cost ?? 0) / 100}
+              onChange={(e) =>
+                update(
+                  "internal_cost",
+                  Math.round(Number(e.target.value) * 100),
+                )
+              }
+            />
+          </label>
+          <label>
+            Status
+            <select
+              value={p.status}
+              onChange={(e) => update("status", e.target.value)}
+            >
+              <option value="concept">Demo concept</option>
+              <option value="available">Available (owner approved)</option>
+              <option value="archived">Archived (hidden)</option>
+            </select>
+          </label>
+        </div>
+        <div className="three-fields">
+          {(["length", "width", "height"] as const).map((k) => (
+            <label key={k}>
+              {k[0].toUpperCase() + k.slice(1)} (cm)
+              <input
+                required
+                type="number"
+                min={k === "height" ? 10 : 20}
+                max={k === "length" ? 500 : 300}
+                step="0.1"
+                value={p[k]}
+                onChange={(e) => update(k, Number(e.target.value))}
+              />
+            </label>
+          ))}
+        </div>
+        <div className="two-fields">
+          <label>
+            Primary material
+            <input
+              required
+              maxLength={80}
+              value={p.material}
+              onChange={(e) => update("material", e.target.value)}
+            />
+          </label>
+          <label>
+            Finish
+            <input
+              required
+              maxLength={80}
+              value={p.finish}
+              onChange={(e) => update("finish", e.target.value)}
+            />
+          </label>
+          <label>
+            Material options (comma separated)
+            <input
+              required
+              value={materials}
+              onChange={(e) => setMaterials(e.target.value)}
+            />
+          </label>
+          <label>
+            Color options (comma separated)
+            <input
+              required
+              value={colors}
+              onChange={(e) => setColors(e.target.value)}
+            />
+          </label>
+        </div>
+        {p.id ? (
+          <ImageManager
+            id={p.id}
+            onBusy={setImageBusy}
+            onChange={(urls) => {
+              setImages(urls.join("\n"));
+              setP((current) => ({ ...current, images: urls }));
+            }}
           />
-        </label>
-        <label>
-          Material options (comma separated)
-          <input
-            required
-            value={materials}
-            onChange={(e) => setMaterials(e.target.value)}
-          />
-        </label>
-        <label>
-          Color options (comma separated)
-          <input
-            required
-            value={colors}
-            onChange={(e) => setColors(e.target.value)}
-          />
-        </label>
-      </div>
-      {p.id ? (
-        <ImageManager
-          id={p.id}
-          onBusy={setImageBusy}
-          onChange={(urls) => {
-            setImages(urls.join("\n"));
-            setP((current) => ({ ...current, images: urls }));
-          }}
-        />
-      ) : (
-        <p className="notice">
-          Save the design first, then upload and arrange its gallery. A labeled
-          placeholder is used initially.
+        ) : (
+          <p className="notice">
+            Save the design first, then edit its gallery and link supplier
+            shops. A labelled placeholder is used initially.
+          </p>
+        )}
+        <p className="muted small">
+          This release uses approved static concept images. Matching turntable
+          frames can be added in a later release; generic geometry is not a
+          product photograph.
         </p>
-      )}
-      <label>
-        Optional 3D concept geometry
-        <select
-          value={p.model || ""}
-          onChange={(e) => update("model", e.target.value || null)}
-        >
-          <option value="">Gallery only</option>
-          <option value="sofas">Generic sofa demo</option>
-          <option value="dining">Generic dining table demo</option>
-          <option value="desks">Generic desk demo</option>
-        </select>
-      </label>
-      <button className="btn" disabled={busy || imageBusy}>
-        <Save size={17} />
-        {busy ? "Saving…" : "Save design"}
-      </button>
-    </form>
+        <button className="btn" disabled={busy || imageBusy}>
+          <Save size={17} />
+          {busy ? "Saving…" : "Save design"}
+        </button>
+      </form>
+      {p.id && <SupplierPanel products={[p]} productId={p.id} />}
+    </>
   );
 }
 function Inquiry({
   quote: q,
+  compare,
+  erase,
   minimum,
   busy,
   save,
   retry,
 }: {
   quote: Quote;
+  compare: () => void;
+  erase: () => void;
   minimum: number;
   busy: boolean;
   save: (body: unknown) => Promise<void>;
@@ -925,7 +967,10 @@ function Inquiry({
         <div>
           <span className="eyebrow">{q.reference}</span>
           <h3>
-            {q.name} <span className="badge">{q.status}</span>
+            {q.name}{" "}
+            <span className="badge">
+              {q.status === "Reviewing" ? "Contacted" : q.status}
+            </span>
           </h3>
           <p>
             {q.product_snapshot.name} · {q.area} · {q.created_at} UTC
@@ -939,9 +984,13 @@ function Inquiry({
         <div className="two-fields">
           <section>
             <h4>Contact</h4>
-            <a href={`mailto:${q.email}`}>{q.email}</a>
+            {q.email && <a href={`mailto:${q.email}`}>{q.email}</a>}
             <p>
-              <a href={`tel:${q.phone}`}>{q.phone}</a>
+              {q.phone ? (
+                <a href={`tel:${q.phone}`}>{q.phone}</a>
+              ) : (
+                "Contact removed"
+              )}
             </p>
             <p>{q.area}</p>
             <small>Customer consent to contact recorded.</small>
@@ -982,7 +1031,9 @@ function Inquiry({
                 onChange={(e) => setStatus(e.target.value)}
               >
                 {statuses.map((s) => (
-                  <option key={s}>{s}</option>
+                  <option key={s} value={s}>
+                    {s === "Reviewing" ? "Contacted" : s}
+                  </option>
                 ))}
               </select>
             </label>
@@ -1019,6 +1070,29 @@ function Inquiry({
           <div className="actions">
             <button className="btn" disabled={busy}>
               <Save size={17} /> Save inquiry
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={busy}
+              onClick={compare}
+            >
+              Compare product suppliers
+            </button>
+            <button
+              className="btn secondary"
+              type="button"
+              disabled={busy || !q.phone}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Permanently remove this inquiry's customer contact details and all free-text notes? The reference, product configuration and commercial amounts remain. This cannot be undone.",
+                  )
+                )
+                  erase();
+              }}
+            >
+              Remove customer personal data
             </button>
             <button
               className="btn secondary"

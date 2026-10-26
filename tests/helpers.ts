@@ -24,9 +24,9 @@ class Statement {
 }
 export class Database {
   db = new DatabaseSync(":memory:");
-  constructor() {
+  constructor(through?: string) {
     for (const file of readdirSync("migrations")
-      .filter((f) => f.endsWith(".sql"))
+      .filter((f) => f.endsWith(".sql") && (!through || f <= through))
       .sort())
       this.db.exec(readFileSync(`migrations/${file}`, "utf8"));
   }

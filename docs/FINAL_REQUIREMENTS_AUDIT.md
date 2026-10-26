@@ -1,5 +1,28 @@
 # Aaranya Living — final requirements audit
 
+## Current pilot scope — catalog and private sourcing
+
+This section supersedes historical category-count and generic-viewer assertions below under the latest [catalog](https://github.com/Vishnu063/Happy_Fatun/pull/2#issuecomment-6403806315), [supplier](https://github.com/Vishnu063/Happy_Fatun/pull/2#issuecomment-6403884565) and explicit current owner instructions.
+
+| Requirement                                                                                         | Status                                 | Evidence / limits                                                                                                                      |
+| --------------------------------------------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Five priority categories; sofas excluded from initial collection                                    | COMPLETE                               | `shared/catalog.ts`, catalog API/SEO/browser tests; legacy records and saved URLs retained                                             |
+| Five original premium category concepts                                                             | COMPLETE for repository assets         | Five generated WebP originals with responsive sizes; provenance documented; concepts are not real inventory or verified specifications |
+| Responsive fast galleries, zoom and navigation                                                      | COMPLETE for tested browser profiles   | Five pilot and all 24 retained galleries exercised on desktop/Pixel 7; no GLB created                                                  |
+| Full matched-frame 360°                                                                             | DEFERRED BY OWNER                      | One image per new concept; requires approved matching frames and future viewer                                                         |
+| Private shop directory and multiple suppliers per product                                           | COMPLETE for repository/local behavior | Normalized additive D1 migration, optional fields, private CRUD/archive, per-product access                                            |
+| Supplier search/filter/edit/cost comparison                                                         | COMPLETE for tested scope              | Private UI, NULL-safe cost/margin logic; API failure/security/privacy tests and isolated no-R2 browser tests                           |
+| Product/quote/auth preservation                                                                     | COMPLETE for tested migration path     | Existing product prices/descriptions, quote and owner session survive migrations 0009/0010; sourcing does not set public prices        |
+| R2-free preview/security/quotation/SEO                                                              | COMPLETE for local preparation         | Existing configuration retained, no-R2 integration/browser checks and non-deploying bundle check; actual cloud operation NOT VERIFIED  |
+| Minimal Indian-mobile inquiry, optional contact fields, private follow-up and personal-data removal | COMPLETE for local behavior            | Existing quote schema/services reused; four failure/privacy API cases and desktop/mobile no-R2 workflow                                |
+| Owner-managed orders and manual payment reconciliation                                              | PLANNED / NOT IMPLEMENTED              | Latest owner decisions captured in MARKETPLACE_ROADMAP.md; no checkout/real payment acceptance                                         |
+| Verified local shop relationships, availability and approved saleable concepts                      | OWNER INPUT / NOT VERIFIED             | No real sourcing records seeded, no independent local-shop research/partnership verification, no stock claims                          |
+| Deployment, live D1/email, Cloudflare quota behavior                                                | NOT VERIFIED / APPROVAL REQUIRED       | No remote migration, deployment, production credential handling or paid activation                                                     |
+
+See [current workflow](PILOT_CATALOG_SUPPLIERS.md) and [validation](../VALIDATION.md). The earlier chat collage is unavailable. Public business facts, actual non-secret account identifiers and explicit approval remain necessary before deployment. This is a reviewable pilot implementation, not a 100% business or production-completion claim.
+
+## Historical broader audit (preceding the five-category pilot)
+
 Audited 25–26 October 2026 (India Standard Time) against [Issue #1 and every owner comment](https://github.com/Vishnu063/Happy_Fatun/issues/1), [PR #2 conversation, security review and inline comments](https://github.com/Vishnu063/Happy_Fatun/pull/2), the owner's final-audit attachment, and the [new organic SEO request](https://github.com/Vishnu063/Happy_Fatun/pull/2#issuecomment-6399955871). GitHub checkpoints and changes are recorded in [PHASES.md](PHASES.md). This report supersedes any broad earlier “completion” wording.
 
 **The website is not fully complete against all requested outcomes.** Working catalog, quotation and owner workflows can be tested locally. Accurate product-specific 360°, realistic approved product presentation, live services and business outcomes remain separate gaps. Passing CI cannot establish those outcomes.

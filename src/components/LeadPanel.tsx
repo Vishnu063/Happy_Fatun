@@ -37,7 +37,7 @@ export default function LeadPanel({
         (q.follow_up_date &&
           q.follow_up_date <= today &&
           !["Won", "Lost"].includes(leadStage(q.status)))) &&
-      `${q.reference} ${q.name} ${q.area} ${q.source} ${q.product_snapshot.name} ${q.owner_notes}`
+      `${q.reference} ${q.name} ${q.phone} ${q.email} ${q.area} ${q.source} ${q.product_snapshot.name} ${q.owner_notes}`
         .toLowerCase()
         .includes(search.toLowerCase()),
   );
@@ -156,8 +156,13 @@ function LeadEditor({
         }}
       >
         <p>
-          <a href={`mailto:${q.email}`}>{q.email}</a> ·{" "}
-          <a href={`tel:${q.phone}`}>{q.phone}</a> · {q.area}
+          {q.email && <a href={`mailto:${q.email}`}>{q.email}</a>} ·{" "}
+          {q.phone ? (
+            <a href={`tel:${q.phone}`}>{q.phone}</a>
+          ) : (
+            "Contact removed"
+          )}{" "}
+          · {q.area}
         </p>
         <p className="notes">
           Customer notes: {q.configuration.notes || "None"}

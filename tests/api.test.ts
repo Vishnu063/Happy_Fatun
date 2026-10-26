@@ -66,25 +66,25 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("public catalog and private owner boundary", () => {
-  it("seeds 24 concepts and exposes no internal costs or customer data", async () => {
+  it("shows only five priority categories while retaining all legacy records", async () => {
     const r = await request("/catalog");
     expect(r.status).toBe(200);
     const body = await r.json<any>();
-    expect(body.products).toHaveLength(24);
-    expect(body.categories.map((c: { name: string }) => c.name)).toEqual(
-      expect.arrayContaining([
-        "Tables",
-        "Dining",
-        "Chairs",
-        "Sofas",
-        "Beds",
-        "Wardrobes",
-        "Cupboards",
-        "Desks",
-        "Custom furniture",
-      ]),
-    );
-    expect(body.categories).toHaveLength(9);
+    expect(body.products).toHaveLength(21);
+    expect(body.categories.map((c: { name: string }) => c.name)).toEqual([
+      "Dining tables",
+      "Beds",
+      "Wardrobes",
+      "Chairs",
+      "Coffee tables",
+    ]);
+    expect(body.categories).toHaveLength(5);
+    expect(db.db.prepare("SELECT COUNT(*) n FROM products").get()?.n).toBe(29);
+    expect(
+      body.products.some(
+        (p: { category_id: string }) => p.category_id === "sofas",
+      ),
+    ).toBe(false);
     expect(
       body.products.every(
         (p: Record<string, unknown>) =>
@@ -184,7 +184,7 @@ describe("public catalog and private owner boundary", () => {
     ).toBe(200);
     const catalog = await (await request("/catalog")).json<any>();
     expect(
-      catalog.products.find((p: { id: string }) => p.id === id).price,
+      (await (await request(`/products/${id}`)).json<any>()).product.price,
     ).toBe(1250000);
     expect(JSON.stringify(catalog)).not.toContain("internal_cost");
     const data = await (
@@ -753,9 +753,9 @@ describe("quote submission retry protection", () => {
 describe("requirements audit catalog and owner controls", () => {
   it("serves 300 distinct isolated fixture records with safe metadata and leaves production seed content unchanged", async () => {
     const insert = db.db.prepare(
-      "INSERT INTO products (id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,internal_cost) SELECT ?,?,category_id,description,material,finish,length,width,height,NULL,'concept',images,colors,materials,NULL,0 FROM products WHERE id='sofas-1'",
+      "INSERT INTO products (id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,internal_cost) SELECT ?,?,'dining',description,material,finish,length,width,height,NULL,'concept',images,colors,materials,NULL,0 FROM products WHERE id='sofas-1'",
     );
-    for (let i = 0; i < 276; i++)
+    for (let i = 0; i < 279; i++)
       insert.run(`audit-fixture-${i}`, `Isolated catalog benchmark ${i}`);
     const body = await (await request("/catalog")).json<any>();
     expect(body.products).toHaveLength(300);
@@ -794,9 +794,8 @@ describe("requirements audit catalog and owner controls", () => {
     expect(
       (await request(`/admin/products/${id}`, "PUT", edited, true)).status,
     ).toBe(200);
-    const updated = (
-      await (await request("/catalog")).json<any>()
-    ).products.find((p: { id: string }) => p.id === id);
+    const updated = (await (await request(`/products/${id}`)).json<any>())
+      .product;
     expect(updated).toMatchObject({
       category_id: "tables",
       length: 230,
@@ -898,13 +897,10 @@ describe("durable image cleanup failures", () => {
         "UPDATE media_objects SET created_at=datetime('now','-10 minutes') WHERE id=?",
       )
       .run(active.id);
-    const publicData = await (await request("/catalog")).json<any>();
-    expect(
-      Object.keys(
-        publicData.products.find((p: { id: string }) => p.id === "sofas-1")
-          .image_metadata,
-      ),
-    ).toContain(active.url);
+    const publicData = await (await request("/products/sofas-1")).json<any>();
+    expect(Object.keys(publicData.product.image_metadata)).toContain(
+      active.url,
+    );
     expect(JSON.stringify(publicData)).not.toContain("stale-stage");
     expect(JSON.stringify(publicData)).not.toContain("recent-stage");
     expect(
@@ -1033,7 +1029,9 @@ describe("owner editable search listings and image descriptions", () => {
       ).status,
     ).toBe(400);
     await request("/admin/categories/sofas", "PUT", { name: "Sofas" }, true);
-    const catalog = await (await request("/catalog")).json<any>();
+    const catalog = await (
+      await request("/catalog?category_id=sofas")
+    ).json<any>();
     expect(
       catalog.categories.find((c: { id: string }) => c.id === "sofas")
         .seo_title,
@@ -1092,11 +1090,8 @@ describe("owner editable search listings and image descriptions", () => {
       await request("/products/sofas-1/images")
     ).json<any>();
     expect(gallery.images[0].alt).toBe(body.alt);
-    const catalog = await (await request("/catalog")).json<any>();
-    expect(
-      catalog.products.find((p: { id: string }) => p.id === "sofas-1")
-        .image_metadata[images[0]].alt,
-    ).toBe(body.alt);
+    const catalog = await (await request("/products/sofas-1")).json<any>();
+    expect(catalog.product.image_metadata[images[0]].alt).toBe(body.alt);
     expect(
       JSON.parse(
         String(

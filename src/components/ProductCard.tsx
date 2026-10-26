@@ -14,6 +14,9 @@ export default function ProductCard({ product: p }: { product: Product }) {
               `${p.name} — furniture design`
             }
             loading="lazy"
+            sizes="(max-width:700px) 50vw, (max-width:1100px) 33vw, 25vw"
+            width={1200}
+            height={900}
           />
           <span className="pill">
             {p.status === "concept" ||

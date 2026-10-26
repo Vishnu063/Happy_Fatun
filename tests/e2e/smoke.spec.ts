@@ -1,6 +1,7 @@
+import { mkdir } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { modelFrame } from "./model-frame";
+import { featuredProducts } from "../../shared/catalog";
 const ownerPassword = "e2e-only-owner-password-not-for-production";
 test("catalog, gallery, configuration, persisted quote and private owner flow", async ({
   page,
@@ -14,9 +15,12 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
       name: "Furniture with soul. Made for your life.",
     }),
   ).toBeVisible();
-  await expect(page.locator("#collection .product-card")).toHaveCount(24);
+  await expect(page.locator("#collection .product-card")).toHaveCount(21);
   await expect(
-    page.getByRole("link", { name: "Aaranya Living home", exact: true }),
+    page.getByRole("link", {
+      name: /Aaranya Living.*CRAFTSMANSHIP/,
+      exact: true,
+    }),
   ).toBeVisible();
   const timing = await page.evaluate(() => {
     const navigation = performance.getEntriesByType(
@@ -48,10 +52,14 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
-  await page.getByRole("button", { name: "Sofas", exact: true }).click();
-  await expect(page).toHaveURL(/\/collections\/sofas\/sofas$/);
-  await expect(page.locator("#collection .product-card")).toHaveCount(4);
-  await page.getByRole("searchbox", { name: "Search furniture" }).fill("Aara");
+  await page
+    .getByRole("button", { name: "Dining tables", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/collections\/dining-tables\/dining$/);
+  await expect(page.locator("#collection .product-card")).toHaveCount(5);
+  await page
+    .getByRole("searchbox", { name: "Search furniture" })
+    .fill("Gather");
   await expect(page.locator("#collection .product-card")).toHaveCount(1);
   await page
     .getByRole("combobox", { name: "Material filter" })
@@ -59,24 +67,24 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   await expect(page.locator("#collection .product-card")).toHaveCount(1);
   await page.locator("#collection .product-card .product-link").click();
   await expect(
-    page.getByRole("heading", { name: "Aara lounge sofa", exact: true }),
+    page.getByRole("heading", { name: "Gather dining table", exact: true }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/design\/aara-lounge-sofa\/sofas-1$/);
+  await expect(page).toHaveURL(/\/design\/gather-dining-table\/dining-1$/);
   await expect(page).toHaveTitle(
-    "Aara lounge sofa | Furniture design | Aaranya Living",
+    "Gather dining table | Furniture design | Aaranya Living",
   );
   const serverDocument = await page.request.get(
-    "/design/aara-lounge-sofa/sofas-1",
+    "/design/gather-dining-table/dining-1",
   );
   expect(serverDocument.status()).toBe(200);
-  expect(await serverDocument.text()).toContain("<h1>Aara lounge sofa</h1>");
+  expect(await serverDocument.text()).toContain("<h1>Gather dining table</h1>");
   const zoomButton = page.getByRole("button", {
     name: "Zoom image",
     exact: true,
   });
   await zoomButton.click();
   const zoomDialog = page.getByRole("dialog", {
-    name: "Aara lounge sofa",
+    name: "Gather dining table",
     exact: true,
   });
   await expect(zoomDialog).toBeVisible();
@@ -123,13 +131,13 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     });
     await expect(page.locator(".gallery-count")).toHaveText("1 / 3");
   }
-  await page.getByRole("button", { name: "360°", exact: true }).click();
   await expect(
-    page
-      .locator(".viewer canvas")
-      .or(page.getByText("3D is unavailable on this device.")),
-  ).toBeVisible();
+    page.getByRole("button", { name: "360°", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "View image 1", exact: true }).click();
+  await page
+    .getByText("Optional furniture customization", { exact: true })
+    .click();
   await page.getByLabel("Length (cm)", { exact: true }).fill("225");
   await page
     .getByRole("combobox", { name: "Material", exact: true })
@@ -138,10 +146,10 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     .getByRole("combobox", { name: "Color", exact: true })
     .selectOption("Olive");
   await page
-    .getByLabel("Special notes", { exact: false })
+    .getByLabel("Message / special notes", { exact: false })
     .fill(`Smoke test ${isMobile ? "mobile" : "desktop"}`);
   await page
-    .getByLabel("Your name", { exact: true })
+    .getByLabel("Full name", { exact: true })
     .fill(`Smoke ${isMobile ? "Mobile" : "Desktop"}`);
   await page.getByLabel("Phone", { exact: true }).fill("+91 9000000000");
   await page.getByLabel("Email", { exact: true }).fill("smoke@example.test");
@@ -175,7 +183,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   expect(submissionKeys).toHaveLength(2);
   expect(submissionKeys[0]).toBeTruthy();
   expect(submissionKeys[0]).toBe(submissionKeys[1]);
-  const anonymous = await page.request.put("/api/admin/products/sofas-1", {
+  const anonymous = await page.request.put("/api/admin/products/dining-1", {
     headers: { Origin: "http://127.0.0.1:8790" },
     data: { price: 1 },
   });
@@ -195,7 +203,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     .fill(reference);
   const inquiry = page.locator(".inquiry").filter({ hasText: reference });
   await inquiry.locator("summary").click();
-  await expect(inquiry.getByText("225 × 90 × 82 cm")).toBeVisible();
+  await expect(inquiry.getByText("225 × 90 × 76 cm")).toBeVisible();
   await expect(inquiry.getByText("Walnut / Olive")).toBeVisible();
   await expect(
     inquiry.getByText("Email: local", { exact: true }),
@@ -267,7 +275,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   );
   await page.getByRole("button", { name: "products", exact: true }).click();
   await page
-    .getByRole("button", { name: "Edit Aara lounge sofa", exact: true })
+    .getByRole("button", { name: "Edit Gather dining table", exact: true })
     .click();
   await page
     .getByLabel("Starting price (₹, blank = on request)", { exact: true })
@@ -314,7 +322,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
   expect(revoked.status()).toBe(401);
   await expect(page.getByLabel("Owner password")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await page.goto("/#/product/sofas-1");
+  await page.goto("/#/product/dining-1");
   await expect(
     page.getByText("Starting at ₹25,000", { exact: true }),
   ).toBeVisible();
@@ -334,10 +342,13 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     page.getByRole("link", { name: "Chat on WhatsApp", exact: true }),
   ).toHaveAttribute("href", /^https:\/\/wa.me\/919000000001\?text=/);
   await page.goto("/design/mysa-curved-sofa/sofas-2");
+  await page
+    .getByText("Optional furniture customization", { exact: true })
+    .click();
   await expect(
     page.getByRole("combobox", { name: "Material", exact: true }),
   ).toHaveValue("Walnut");
-  await page.goto("/design/aara-lounge-sofa/sofas-1");
+  await page.goto("/design/gather-dining-table/dining-1");
   expect(errors).toEqual([]);
   await page.screenshot({
     path: `test-results/${isMobile ? "mobile" : "desktop"}-product.png`,
@@ -377,7 +388,7 @@ test("owner creates, renames and deletes categories and designs", async ({
   await page.getByRole("button", { name: "Add design", exact: true }).click();
   await page
     .getByLabel("Design name", { exact: true })
-    .fill(`Test desk ${suffix}`);
+    .fill(`Test chair ${suffix}`);
   await page
     .getByRole("combobox", { name: "Category", exact: true })
     .selectOption({ label: `Studio ${suffix}` });
@@ -389,7 +400,7 @@ test("owner creates, renames and deletes categories and designs", async ({
     .fill("10000");
   await page
     .getByLabel("SEO title", { exact: true })
-    .fill(`Test desk search listing ${suffix}`);
+    .fill(`Test chair search listing ${suffix}`);
   await page
     .getByLabel("Meta description", { exact: true })
     .fill(
@@ -397,10 +408,13 @@ test("owner creates, renames and deletes categories and designs", async ({
     );
   await page.getByRole("button", { name: "Save design", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: `Edit Test desk ${suffix}`, exact: true }),
+    page.getByRole("button", {
+      name: `Edit Test chair ${suffix}`,
+      exact: true,
+    }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: `Edit Test desk ${suffix}`, exact: true })
+    .getByRole("button", { name: `Edit Test chair ${suffix}`, exact: true })
     .click();
   const encoded = await page.evaluate(() => {
     const c = document.createElement("canvas");
@@ -465,6 +479,9 @@ test("owner creates, renames and deletes categories and designs", async ({
     .getByRole("button", { name: "Delete image 2", exact: true })
     .click();
   await expect(page.locator(".managed-image")).toHaveCount(1);
+  await page
+    .getByRole("combobox", { name: "Category", exact: true })
+    .selectOption("chairs");
   await page.getByRole("button", { name: "Save design", exact: true }).click();
   const catalog = await page.context().newPage();
   await catalog.goto("/");
@@ -473,39 +490,40 @@ test("owner creates, renames and deletes categories and designs", async ({
     .selectOption("low");
   await expect(
     catalog.locator("#collection .product-card").first(),
-  ).toContainText(`Test desk ${suffix}`);
+  ).toContainText(`Test chair ${suffix}`);
   await catalog
     .getByRole("combobox", { name: "Sort designs" })
     .selectOption("high");
   await expect(
     catalog.locator("#collection .product-card").first(),
-  ).toContainText("Aara lounge sofa");
+  ).toContainText("Gather dining table");
   await catalog.getByLabel("Maximum starting price in rupees").fill("20000");
   await expect(catalog.locator("#collection .product-card")).toHaveCount(1);
   await expect(catalog.locator("#collection .product-card")).toContainText(
-    `Test desk ${suffix}`,
+    `Test chair ${suffix}`,
   );
   await catalog
     .locator("#collection")
     .getByRole("link", { name: "Request quote", exact: true })
     .click();
   await expect(catalog).toHaveURL(/#customize$/);
-  await expect(catalog).toHaveTitle(`Test desk search listing ${suffix}`);
+  await expect(catalog).toHaveTitle(`Test chair search listing ${suffix}`);
   await expect(catalog.locator(".gallery img").first()).toHaveAttribute(
     "alt",
     "Edited studio alt text for isolated test design",
   );
 
-  await expect(
-    catalog.getByLabel("Length (cm)", { exact: true }),
-  ).toBeFocused();
+  await expect(catalog.getByLabel("Full name", { exact: true })).toBeFocused();
   await catalog.close();
   page.on("dialog", (dialog) => dialog.accept());
   await page
-    .getByRole("button", { name: `Delete Test desk ${suffix}`, exact: true })
+    .getByRole("button", { name: `Delete Test chair ${suffix}`, exact: true })
     .click();
   await expect(
-    page.getByRole("button", { name: `Edit Test desk ${suffix}`, exact: true }),
+    page.getByRole("button", {
+      name: `Edit Test chair ${suffix}`,
+      exact: true,
+    }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "categories", exact: true }).click();
   await page
@@ -589,141 +607,82 @@ test("catalog growth keeps initial rendering bounded and all designs discoverabl
   ).toBeVisible();
 });
 
-for (const family of [
-  "beds",
-  "chairs",
-  "desks",
-  "dining",
-  "sofas",
-  "wardrobes",
-]) {
-  test(`per-product 3D inventory: ${family}`, async ({ page, isMobile }) => {
-    test.setTimeout(180000);
-    page.setDefaultTimeout(10000);
-    const { products } = await (await page.request.get("/api/catalog")).json();
-    expect(products).toHaveLength(24);
-    const inventory: { id: string; shape: string | null; result: string }[] =
-      [];
-    const familyProducts = products.filter(
-      (p: { category_id: string }) => p.category_id === family,
-    );
-    expect(familyProducts).toHaveLength(4);
-    for (const product of familyProducts) {
-      await page.goto(`/design/${product.id}`);
-      if (!product.model) {
-        await expect(
-          page.getByRole("button", { name: "360°", exact: true }),
-        ).toHaveCount(0);
-        inventory.push({ id: product.id, shape: null, result: "gallery-only" });
-        continue;
-      }
-      await page.getByRole("button", { name: "360°", exact: true }).click();
-      const canvas = page.locator(".viewer canvas");
-      await expect(
-        canvas.or(page.getByText("3D is unavailable on this device.")),
-      ).toBeVisible();
-      if (!(await canvas.isVisible())) {
-        inventory.push({
-          id: product.id,
-          shape: product.model,
-          result: "device-fallback; controls not verified",
-        });
-        continue;
-      }
-      expect(
-        await page.evaluate(
-          () => document.documentElement.scrollWidth <= window.innerWidth,
-        ),
-      ).toBe(true);
-      await canvas.scrollIntoViewIfNeeded();
-      await expect
-        .poll(async () => (await modelFrame(canvas)).colors)
-        .toBeGreaterThan(2);
-      const initial = (await modelFrame(canvas)).hash;
-      for (const name of [
-        "Rotate model left",
-        "Rotate model right",
-        "Rotate model up",
-        "Rotate model down",
-        "Zoom model in",
-        "Zoom model out",
-      ]) {
-        await page.getByRole("button", { name, exact: true }).click();
-        await expect
-          .poll(async () => (await modelFrame(canvas)).hash)
-          .not.toBe(initial);
-        expect(
-          await page.evaluate(() => window.visualViewport?.scale ?? 1),
-        ).toBe(1);
-        await page
-          .getByRole("button", { name: "Reset model view", exact: true })
-          .click();
-        await expect
-          .poll(async () => (await modelFrame(canvas)).hash)
-          .toBe(initial);
-      }
-      if (isMobile) {
-        const box = (await canvas.boundingBox())!;
-        const client = await page.context().newCDPSession(page);
-        await client.send("Input.dispatchTouchEvent", {
-          type: "touchStart",
-          touchPoints: [
-            { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-          ],
-        });
-        await client.send("Input.dispatchTouchEvent", {
-          type: "touchMove",
-          touchPoints: [
-            { x: box.x + box.width / 2 - 60, y: box.y + box.height / 2 - 40 },
-          ],
-        });
-        await client.send("Input.dispatchTouchEvent", {
-          type: "touchEnd",
-          touchPoints: [],
-        });
-        await expect
-          .poll(async () => (await modelFrame(canvas)).hash)
-          .not.toBe(initial);
-        await client.detach();
-      }
-      inventory.push({
-        id: product.id,
-        shape: product.model,
-        result: isMobile
-          ? "generic controls and touch verified"
-          : "generic controls verified",
-      });
-    }
-    await test.info().attach("per-product-demo-3d-inventory", {
-      body: JSON.stringify(inventory, null, 2),
-      contentType: "application/json",
-    });
-    console.log(
-      `${isMobile ? "Mobile" : "Desktop"} ${family} 3D inventory: ${inventory.filter((i) => i.result.startsWith("generic")).length} generic demos verified, ${inventory.filter((i) => i.result.startsWith("device")).length} device fallbacks, ${inventory.filter((i) => i.result === "gallery-only").length} gallery-only; zero accurate product models`,
-    );
-    if (family !== "sofas") return;
-    // Deliberately remove WebGL once per profile, rather than relying on a machine that lacks it.
-    await page.addInitScript(() => {
-      const original = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function (
-        this: HTMLCanvasElement,
-        type: string,
-        ...args: unknown[]
-      ) {
-        if (type.includes("webgl")) return null;
-        return Reflect.apply(original, this, [type, ...args]);
-      } as typeof original;
-    });
-    await page.goto("/design/aara-lounge-sofa/sofas-1");
-    await page.getByRole("button", { name: "360°", exact: true }).click();
-    await expect(
-      page.getByText("3D is unavailable on this device."),
-    ).toBeVisible();
-    await page
-      .getByRole("button", { name: "View image 1", exact: true })
-      .click();
-    await expect(
-      page.getByRole("button", { name: "Zoom image", exact: true }),
-    ).toBeVisible();
+test("five original pilot galleries are responsive and never claim unmatched rotation", async ({
+  page,
+}, info) => {
+  await page.goto("/");
+  const featured = page.getByRole("region", {
+    name: "Featured design concepts",
   });
-}
+  await expect(featured.locator(".product-card")).toHaveCount(5);
+  await expect(featured).not.toContainText(/sofa/i);
+  await expect(
+    page
+      .getByRole("group", { name: "Furniture categories" })
+      .getByRole("button"),
+  ).toHaveCount(6);
+  await mkdir("/tmp/aaranya-pilot-visuals", { recursive: true });
+  await page.screenshot({
+    path: `/tmp/aaranya-pilot-visuals/${info.project.name}-catalog.png`,
+    fullPage: true,
+  });
+  for (const id of featuredProducts) {
+    await page.goto("/design/" + id);
+    const primary = page.locator(".gallery img").first();
+    await expect(primary).toBeVisible();
+    expect(
+      await primary.evaluate((img: HTMLImageElement) =>
+        img.decode().then(() => img.naturalWidth),
+      ),
+    ).toBeGreaterThan(400);
+    await expect(
+      page.getByRole("button", { name: "360°", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Previous image", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Next image", exact: true }),
+    ).toBeDisabled();
+    if (id === "pilot-chair")
+      await page.screenshot({
+        path: `/tmp/aaranya-pilot-visuals/${info.project.name}-concept-gallery.png`,
+        fullPage: true,
+      });
+    await expect(page.locator(".disclosure")).toContainText(
+      "not manufactured stock",
+    );
+    await page.getByRole("button", { name: "Zoom image", exact: true }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
+test("all 24 legacy designs retain working galleries and direct URLs", async ({
+  page,
+}) => {
+  for (const family of [
+    "sofas",
+    "beds",
+    "wardrobes",
+    "dining",
+    "chairs",
+    "desks",
+  ])
+    for (let i = 1; i <= 4; i++) {
+      await page.goto(`/design/${family}-${i}`);
+      await expect(page.locator(".detail-grid h1")).toBeVisible();
+      await expect(page.locator(".gallery img").first()).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "360°", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: "Zoom image", exact: true }),
+      ).toBeVisible();
+    }
+});

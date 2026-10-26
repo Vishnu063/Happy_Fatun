@@ -88,6 +88,24 @@ export function categoryContent(c: { id: string; name: string }) {
         "Ask about wall fixing, uneven floors, skirting and assembly clearance.",
       ],
     },
+    chairs: {
+      intro:
+        "Choose a chair for the way you sit and the clearance around it. A sculptural silhouette should still be reviewed for comfort and construction.",
+      checks: [
+        "Compare seat height and usable seat depth with your intended setting.",
+        "Check arm height and the space needed to pull the chair back.",
+        "Request an upholstery/finish sample and ask about joint construction and care.",
+      ],
+    },
+    "coffee-tables": {
+      intro:
+        "Plan a coffee table around comfortable reach, movement and everyday use. Compare its footprint with the surrounding seating before choosing a finish.",
+      checks: [
+        "Allow knee clearance and a clear route around the table.",
+        "Compare top height with the seat cushion level and intended use.",
+        "Review edge profiles, stability and a finish sample with the manufacturer.",
+      ],
+    },
     custom: {
       intro:
         "Turn an unusual space or a particular need into a clear furniture brief. Start with constraints and intended use before deciding on a shape or finish.",

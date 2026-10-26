@@ -20,8 +20,10 @@ import Contact from "./components/Contact";
 import Guides from "./components/Guides";
 import { guides, guideURL, categoryContent } from "../shared/content";
 import { captureSource, type Business } from "./lib/contact";
+import { priorityCategories, featuredProducts } from "../shared/catalog";
 const Admin = lazy(() => import("./components/Admin"));
 export default function App() {
+  const [preview, setPreview] = useState(false);
   const [route, setRoute] = useState(currentPath);
   const [business, setBusiness] = useState<Business | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -48,9 +50,23 @@ export default function App() {
     [query, category, material, budget, sort],
   );
   const load = () =>
-    api<{ products: Product[]; categories: Category[] }>("/catalog")
+    api<{ products: Product[]; categories: Category[]; preview: boolean }>(
+      route.startsWith("/collections/")
+        ? `/catalog?category_id=${encodeURIComponent(route.split("/").at(-1)!)}`
+        : "/catalog",
+    )
       .then(async (data) => {
         setBusiness(await api<Business>("/business"));
+        if (
+          (route.startsWith("/design/") || route.startsWith("/product/")) &&
+          !data.products.some((p) => p.id === route.split("/").at(-1))
+        ) {
+          const extra = await api<{ product: Product }>(
+            `/products/${encodeURIComponent(route.split("/").at(-1)!)}`,
+          );
+          data.products.push(extra.product);
+        }
+        setPreview(data.preview);
         setProducts(data.products);
         setCategories(data.categories);
         setError("");
@@ -81,6 +97,11 @@ export default function App() {
     if (!route.startsWith("/admin")) void load();
   }, [route]);
   const visible = products
+    .filter(
+      (p) =>
+        priorityCategories.some((id) => id === p.category_id) ||
+        route.startsWith("/collections/"),
+    )
     .filter(
       (p) =>
         (category === "all" || p.category_id === category) &&
@@ -134,6 +155,7 @@ export default function App() {
       document.head.appendChild(robots);
     }
     robots.content =
+      preview ||
       route.startsWith("/admin") ||
       (!selected &&
         !collection &&
@@ -156,7 +178,7 @@ export default function App() {
     if (selected && route.startsWith("/product/"))
       navigate(productURL(selected), true);
     else if (location.hash.startsWith("#/") && !isDesign) navigate(route, true);
-  }, [route, selected, collection, business]);
+  }, [route, selected, collection, business, preview]);
   const browse = (id = "all") => {
     setCategory(id);
     setQuery("");
@@ -182,12 +204,12 @@ export default function App() {
       >
         Skip to content
       </a>
-      <div className="announcement">
+      <aside className="announcement" aria-label="Studio announcement">
         Thoughtfully imagined. Personally made.{" "}
         <span>A considered approach to furniture.</span>
-      </div>
+      </aside>
       <header className="site-header">
-        <a className="brand" href="/" aria-label="Aaranya Living home">
+        <a className="brand" href="/">
           <BrandMark />
           <span>
             Aaranya Living
@@ -360,12 +382,14 @@ export default function App() {
                 </div>
                 <div className="hero-art">
                   <img
-                    src="/assets/sofas-1.svg"
-                    alt="Illustrated lounge sofa in a warm, minimal room"
+                    src="/assets/pilot/dining-studio.webp"
+                    width={1200}
+                    height={900}
+                    alt="Original illustrative oak dining table concept on a warm white studio background"
                     fetchPriority="high"
                   />
                   <span className="art-tag">
-                    THE CONCEPT COLLECTION <span>01 / Living</span>
+                    THE CONCEPT COLLECTION <span>01 / Dining</span>
                   </span>
                   <div className="art-caption">
                     Quiet forms.
@@ -373,7 +397,7 @@ export default function App() {
                     <em>Endless possibilities.</em>
                   </div>
                   <span className="image-disclosure">
-                    Original illustrative demo concept
+                    AI-generated design concept · Not manufactured stock
                   </span>
                 </div>
               </section>
@@ -407,10 +431,10 @@ export default function App() {
                 aria-label="Featured design concepts"
               >
                 <p className="eyebrow">SELECTED IDEAS</p>
-                <h2>Three ways to make room for you.</h2>
+                <h2>Five ways to make room for you.</h2>
                 <div className="product-grid">
-                  {["sofas", "beds", "dining"]
-                    .map((id) => products.find((p) => p.category_id === id))
+                  {featuredProducts
+                    .map((id) => products.find((p) => p.id === id))
                     .filter((p): p is Product => !!p)
                     .map((p) => (
                       <ProductCard key={p.id} product={p} />
@@ -439,15 +463,17 @@ export default function App() {
                 >
                   All furniture
                 </button>
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    className={category === c.id ? "active" : ""}
-                    onClick={() => browse(c.id)}
-                  >
-                    {c.name}
-                  </button>
-                ))}
+                {categories
+                  .filter((c) => priorityCategories.some((id) => id === c.id))
+                  .map((c) => (
+                    <button
+                      key={c.id}
+                      className={category === c.id ? "active" : ""}
+                      onClick={() => browse(c.id)}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
               </div>
               <div className="filters">
                 <label className="search">

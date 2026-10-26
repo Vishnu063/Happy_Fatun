@@ -1,4 +1,6 @@
 import { registerSEO } from "./seo";
+import { indianMobile } from "../shared/inquiries";
+import { registerSuppliers } from "./suppliers";
 import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
@@ -17,6 +19,12 @@ import { leadSources } from "../shared/leads";
 import { registerMedia, isImageUpload, MAX_IMAGE_BYTES } from "./media";
 import { flushMediaCleanup } from "./media-cleanup";
 import { imageStorageUnavailable } from "../shared/media";
+import {
+  publicColumns,
+  decode,
+  publicProducts,
+  publicCategories,
+} from "./catalog";
 export type Env = {
   DB: D1Database;
   ASSETS?: Fetcher;
@@ -118,16 +126,6 @@ app.onError((err, c) => {
     500,
   );
 });
-const publicColumns =
-  "id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,seo_title,seo_description";
-function decode(row: Record<string, unknown>) {
-  return {
-    ...row,
-    images: JSON.parse(String(row.images)),
-    colors: JSON.parse(String(row.colors)),
-    materials: JSON.parse(String(row.materials)),
-  };
-}
 const statuses = [
   "New",
   "Reviewing",
@@ -138,40 +136,26 @@ const statuses = [
   "Closed",
 ] as const;
 app.get("/api/catalog", async (c) => {
-  const [products, categories, media] = await Promise.all([
-    c.env.DB.prepare(
-      `SELECT ${publicColumns} FROM products WHERE status != 'archived' ORDER BY name`,
-    ).all(),
-    c.env.DB.prepare(
-      "SELECT id,name,seo_title,seo_description FROM categories ORDER BY name",
-    ).all(),
-    c.env.DB.prepare(
-      `SELECT p.id AS product_id,j.value AS url,
-        COALESCE(t.alt,m.alt,p.name||' — view '||(CAST(j.key AS INTEGER)+1)) AS alt,
-        COALESCE(m.kind,CASE WHEN p.status='concept' THEN 'illustrative' ELSE 'photo' END) AS kind
-        FROM products p,json_each(p.images) j
-        LEFT JOIN media_objects m ON '/media/'||m.id=j.value AND m.product_id=p.id
-        LEFT JOIN product_image_text t ON t.product_id=p.id AND t.url=j.value
-        WHERE p.status!='archived'`,
-    ).all(),
+  const category = z
+    .string()
+    .max(80)
+    .optional()
+    .parse(c.req.query("category_id"));
+  const [products, categories] = await Promise.all([
+    publicProducts(c.env, { category }),
+    publicCategories(c.env, category),
   ]);
-  const metadata = new Map<
-    string,
-    Record<string, { alt: unknown; kind: unknown }>
-  >();
-  for (const image of media.results) {
-    const id = String(image.product_id);
-    const images = metadata.get(id) || {};
-    images[String(image.url)] = { alt: image.alt, kind: image.kind };
-    metadata.set(id, images);
-  }
   return c.json({
-    products: products.results.map((row) => ({
-      ...decode(row),
-      image_metadata: metadata.get(String(row.id)) || {},
-    })),
-    categories: categories.results,
+    products,
+    categories,
+    preview: c.env.PREVIEW_MODE === "true",
   });
+});
+app.get("/api/products/:id", async (c) => {
+  const [product] = await publicProducts(c.env, { id: c.req.param("id") });
+  return product
+    ? c.json({ product })
+    : c.json({ error: "Design not found." }, 404);
 });
 app.post("/api/auth/login", async (c) => {
   if (
@@ -230,12 +214,19 @@ const quoteInput = z
     product_id: z.string().max(80),
     configuration,
     name: z.string().trim().min(2).max(100),
-    email: z.string().trim().email().max(254),
+    email: z
+      .union([z.string().trim().email().max(254), z.literal("")])
+      .optional()
+      .default(""),
     phone: z
       .string()
       .trim()
-      .regex(/^[+\d ()-]{7,25}$/),
-    area: z.string().trim().min(2).max(200),
+      .refine(
+        (v) => indianMobile(v) !== null,
+        "Enter a valid Indian mobile number.",
+      )
+      .transform((v) => indianMobile(v)!),
+    area: z.string().trim().max(500).optional().default(""),
     consent: z.literal(true),
     website: z.string().max(0),
     source: z.enum(leadSources).default("direct"),
@@ -549,6 +540,20 @@ app.put("/api/admin/products/:id", async (c) => {
   return c.json({ ok: true });
 });
 app.delete("/api/admin/products/:id", async (c) => {
+  if (
+    await c.env.DB.prepare(
+      "SELECT id FROM product_suppliers WHERE product_id=? LIMIT 1",
+    )
+      .bind(c.req.param("id"))
+      .first()
+  )
+    return c.json(
+      {
+        error:
+          "Archive this product to preserve its supplier records; permanent deletion is blocked.",
+      },
+      409,
+    );
   if (!c.env.PRODUCT_IMAGES) {
     // Check storage dependencies in the deletion itself, avoiding a check/delete race.
     await c.env.DB.prepare(
@@ -690,6 +695,17 @@ app.put("/api/admin/quotes/:id", async (c) => {
         : null,
   });
 });
+app.delete("/api/admin/quotes/:id/personal-data", async (c) => {
+  const result = await c.env.DB.prepare(
+    `UPDATE quotes SET name='Deleted inquiry',email='',phone='',area='',owner_notes='',follow_up_date=NULL,
+    configuration=json_set(configuration,'$.notes','') WHERE id=? RETURNING id`,
+  )
+    .bind(c.req.param("id"))
+    .first();
+  return result
+    ? c.json({ ok: true })
+    : c.json({ error: "Inquiry not found." }, 404);
+});
 app.post("/api/admin/quotes/:id/retry", async (c) => {
   if (
     !(await c.env.DB.prepare("SELECT id FROM quotes WHERE id=?")
@@ -700,6 +716,7 @@ app.post("/api/admin/quotes/:id/retry", async (c) => {
   await notify(c.env, c.req.param("id"));
   return c.json({ ok: true });
 });
+registerSuppliers(app);
 registerMedia(app);
 registerLeads(app);
 app.get("/api/health", (c) => c.json({ ok: true }));

@@ -1,11 +1,11 @@
-import { lazy, Suspense, useRef, useState, useEffect } from "react";
+import { indianMobile } from "../../shared/inquiries";
+import { useRef, useState, useEffect } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   Check,
   ChevronLeft,
   ChevronRight,
-  Rotate3D,
   X,
 } from "lucide-react";
 import { api, send, money, type Product } from "../lib/api";
@@ -14,7 +14,6 @@ import ImageZoom from "./ImageZoom";
 import FurnitureImage from "./FurnitureImage";
 import { captureSource, whatsappURL, type Business } from "../lib/contact";
 import type { GalleryImage } from "./ImageManager";
-const Viewer = lazy(() => import("./Viewer"));
 export default function ProductDetail({
   product: p,
   related,
@@ -28,7 +27,7 @@ export default function ProductDetail({
   useEffect(() => {
     if (location.hash === "#customize") {
       document.getElementById("customize")?.scrollIntoView();
-      document.getElementById("length")?.focus({ preventScroll: true });
+      document.getElementById("customer-name")?.focus({ preventScroll: true });
     }
   }, [p.id]);
   useEffect(() => {
@@ -38,7 +37,6 @@ export default function ProductDetail({
   }, [p.id, p.images.join("|")]);
   const [image, setImage] = useState(0);
   const [zoom, setZoom] = useState(false);
-  const [three, setThree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionKey] = useState(() => crypto.randomUUID());
   const [error, setError] = useState("");
@@ -156,7 +154,6 @@ export default function ProductDetail({
             role="region"
             aria-label="Product images. Use left and right arrow keys to browse."
             onKeyDown={(e) => {
-              if (three) return;
               if (e.key === "ArrowLeft") {
                 e.preventDefault();
                 move(-1);
@@ -167,11 +164,9 @@ export default function ProductDetail({
               }
             }}
             onTouchStart={(e) => {
-              if (three) return;
               touch.current = e.touches[0].clientX;
             }}
             onTouchEnd={(e) => {
-              if (three) return;
               if (touch.current !== null) {
                 const delta = e.changedTouches[0].clientX - touch.current;
                 if (Math.abs(delta) > 40) move(delta < 0 ? 1 : -1);
@@ -179,24 +174,19 @@ export default function ProductDetail({
               }
             }}
           >
-            {three && p.model ? (
-              <Suspense fallback={<p>Loading 3D concept…</p>}>
-                <Viewer model={p.model} color={config.color} />
-              </Suspense>
-            ) : (
-              <FurnitureImage
-                src={p.images[image]}
-                alt={
-                  gallery[image]?.alt ||
-                  `${p.name} — ${["clean background illustration", "room illustration", "alternate angle illustration"][image] || `view ${image + 1}`}`
-                }
-              />
-            )}
-            {!three && (
+            <FurnitureImage
+              src={p.images[image]}
+              alt={
+                gallery[image]?.alt ||
+                `${p.name} — ${["clean background illustration", "room illustration", "alternate angle illustration"][image] || `view ${image + 1}`}`
+              }
+            />
+            {
               <>
                 <button
                   className="gallery-prev icon"
                   aria-label="Previous image"
+                  disabled={p.images.length < 2}
                   onClick={() => move(-1)}
                 >
                   <ChevronLeft />
@@ -204,6 +194,7 @@ export default function ProductDetail({
                 <button
                   className="gallery-next icon"
                   aria-label="Next image"
+                  disabled={p.images.length < 2}
                   onClick={() => move(1)}
                 >
                   <ChevronRight />
@@ -219,46 +210,32 @@ export default function ProductDetail({
                   {image + 1} / {p.images.length}
                 </span>
               </>
-            )}
+            }
           </div>
           <div className="gallery-thumbs">
             {p.images.map((src, i) => (
               <button
                 key={`${src}-${i}`}
                 aria-label={`View image ${i + 1}`}
-                aria-pressed={!three && i === image}
+                aria-pressed={i === image}
                 onClick={() => {
                   setImage(i);
-                  setThree(false);
                 }}
               >
                 <img src={src} alt="" loading="lazy" />
               </button>
             ))}
-            {p.model && (
-              <button
-                className="view3d"
-                aria-pressed={three}
-                onClick={() => setThree(!three)}
-              >
-                <Rotate3D size={23} /> 360°
-              </button>
-            )}
           </div>
           <p className="disclosure">
             {illustrative ? "Design concept / illustrative image. " : ""}
-            {three
-              ? "Interactive generic demo geometry; not an accurate model of this product."
-              : illustrative
-                ? "Illustrative design image, not manufactured stock."
-                : "Owner-supplied gallery. Confirm specifications during review."}
+            {illustrative
+              ? "Illustrative design image, not manufactured stock."
+              : "Owner-supplied gallery. Confirm specifications during review."}
           </p>
-          {!p.model && (
-            <p className="muted">
-              360° view is unavailable for this concept. Explore the gallery
-              instead.
-            </p>
-          )}
+          <p className="muted">
+            Additional matching views can be added after approval. A single
+            illustration is not a 360° view.
+          </p>
         </section>
         <section>
           <p className="eyebrow">
@@ -305,10 +282,12 @@ export default function ProductDetail({
               document
                 .getElementById("customize")
                 ?.scrollIntoView({ behavior: "smooth" });
-              document.getElementById("length")?.focus({ preventScroll: true });
+              document
+                .getElementById("customer-name")
+                ?.focus({ preventScroll: true });
             }}
           >
-            Customize & request quote <ArrowRight size={18} />
+            Request Details / Request a Quote <ArrowRight size={18} />
           </a>
           {whatsappURL(business?.whatsapp || null) && (
             <a
@@ -330,84 +309,77 @@ export default function ProductDetail({
           <p className="eyebrow">DESIGNED AROUND YOU</p>
           <h2>A few details. A world of possibilities.</h2>
           <p>
-            Your preferences help us prepare a personal quotation. All
-            measurements are in centimetres.
+            Share your name and mobile to request details or a quotation. The
+            shown configuration is prefilled; change it only if needed.
+            Measurements are in centimetres.
           </p>
         </div>
         <div className="form-columns">
-          <fieldset>
-            <legend>
-              <span>01</span> Make it yours
-            </legend>
-            <div className="three-fields">
-              {(["length", "width", "height"] as const).map((k) => (
-                <label key={k} htmlFor={k}>
-                  {k[0].toUpperCase() + k.slice(1)} (cm)
-                  <input
-                    id={k}
-                    type="number"
-                    required
-                    step="0.1"
-                    min={k === "height" ? 10 : 20}
-                    max={k === "length" ? 500 : 300}
-                    value={config[k]}
+          <details className="inquiry-customization">
+            <summary>Optional furniture customization</summary>
+            <fieldset>
+              <legend>
+                <span>01</span> Make it yours
+              </legend>
+              <div className="three-fields">
+                {(["length", "width", "height"] as const).map((k) => (
+                  <label key={k} htmlFor={k}>
+                    {k[0].toUpperCase() + k.slice(1)} (cm)
+                    <input
+                      id={k}
+                      type="number"
+                      required
+                      step="0.1"
+                      min={k === "height" ? 10 : 20}
+                      max={k === "length" ? 500 : 300}
+                      value={config[k]}
+                      onChange={(e) =>
+                        setConfig({ ...config, [k]: Number(e.target.value) })
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="two-fields">
+                <label>
+                  Material
+                  <select
+                    value={config.material}
                     onChange={(e) =>
-                      setConfig({ ...config, [k]: Number(e.target.value) })
+                      setConfig({ ...config, material: e.target.value })
                     }
-                  />
+                  >
+                    {p.materials.map((m) => (
+                      <option key={m}>{m}</option>
+                    ))}
+                  </select>
                 </label>
-              ))}
-            </div>
-            <div className="two-fields">
-              <label>
-                Material
-                <select
-                  value={config.material}
-                  onChange={(e) =>
-                    setConfig({ ...config, material: e.target.value })
-                  }
-                >
-                  {p.materials.map((m) => (
-                    <option key={m}>{m}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Color
-                <select
-                  value={config.color}
-                  onChange={(e) =>
-                    setConfig({ ...config, color: e.target.value })
-                  }
-                >
-                  {p.colors.map((m) => (
-                    <option key={m}>{m}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label>
-              Special notes <span className="muted">(optional)</span>
-              <textarea
-                maxLength={2000}
-                rows={4}
-                value={config.notes}
-                onChange={(e) =>
-                  setConfig({ ...config, notes: e.target.value })
-                }
-                placeholder="Tell us about your room, finish preferences or a detail you love."
-              />
-            </label>
-          </fieldset>
+                <label>
+                  Color
+                  <select
+                    value={config.color}
+                    onChange={(e) =>
+                      setConfig({ ...config, color: e.target.value })
+                    }
+                  >
+                    {p.colors.map((m) => (
+                      <option key={m}>{m}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </fieldset>
+          </details>
           <fieldset>
             <legend>
               <span>02</span> Let’s start a conversation
             </legend>
             <div className="two-fields">
               <label>
-                Your name
+                Full name
                 <input
                   name="name"
+                  id="customer-name"
                   autoComplete="name"
                   required
                   minLength={2}
@@ -421,18 +393,28 @@ export default function ProductDetail({
                   type="tel"
                   autoComplete="tel"
                   required
-                  pattern="[+0-9 \(\)\-]{7,25}"
+                  onInput={(e) =>
+                    e.currentTarget.setCustomValidity(
+                      indianMobile(e.currentTarget.value)
+                        ? ""
+                        : "Enter a valid Indian mobile number.",
+                    )
+                  }
+                  aria-describedby="mobile-help"
                   maxLength={25}
                 />
               </label>
             </div>
+            <p id="mobile-help" className="muted small">
+              Indian mobile number, with or without +91. Email, delivery area
+              and message are optional.
+            </p>
             <label>
               Email
               <input
                 name="email"
                 type="email"
                 autoComplete="email"
-                required
                 maxLength={254}
               />
             </label>
@@ -441,10 +423,20 @@ export default function ProductDetail({
               <input
                 name="area"
                 autoComplete="address-level2"
-                required
-                minLength={2}
-                maxLength={200}
+                maxLength={500}
                 placeholder="City, locality and postal code"
+              />
+            </label>
+            <label>
+              Message / special notes <span className="muted">(optional)</span>
+              <textarea
+                maxLength={2000}
+                rows={4}
+                value={config.notes}
+                onChange={(e) =>
+                  setConfig({ ...config, notes: e.target.value })
+                }
+                placeholder="Tell us about your room, finish preferences or a detail you love."
               />
             </label>
             <label className="honeypot" aria-hidden="true">
@@ -458,6 +450,12 @@ export default function ProductDetail({
                 used to review and respond to this request.
               </span>
             </label>
+            <p className="muted small">
+              Your contact details and message are private to Aaranya Living and
+              used to respond to this inquiry. No marketing subscription.
+              Contact us with your reference to request removal of personal
+              details.
+            </p>
             {error && (
               <p className="error" role="alert">
                 {error}

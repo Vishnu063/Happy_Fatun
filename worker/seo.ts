@@ -1,6 +1,8 @@
 import type { Hono } from "hono";
 import type { Env } from "./index";
 import { publicBusiness } from "./leads";
+import { categoryLabel } from "../shared/catalog";
+import { publicCategories } from "./catalog";
 import { guides, guideURL, categoryContent } from "../shared/content";
 import { brand, pageMetadata, productURL, categoryURL } from "../shared/seo";
 type App = Hono<{ Bindings: Env; Variables: { session: string } }>;
@@ -47,7 +49,7 @@ export function registerSEO(app: App) {
       "/contact",
       "/guides",
       ...guides.map(guideURL),
-      ...categories.results.map(categoryURL),
+      ...categories.results.map(categoryLabel).map(categoryURL),
       ...products.results.map(productURL),
     ];
     return c.body(
@@ -107,6 +109,7 @@ export function registerSEO(app: App) {
             seo_description: string;
           }>()) || undefined;
       if (category) {
+        category = categoryLabel(category);
         canonical = categoryURL(category);
         if (path !== canonical) return c.redirect(canonical, 301);
       } else status = 404;
@@ -188,10 +191,8 @@ export function registerSEO(app: App) {
     } else
       summary = `<h1>${escape(metadata.title)}</h1><p>${escape(metadata.description)}</p>`;
     if (path === "/") {
-      const collections = await c.env.DB.prepare(
-        "SELECT id,name FROM categories ORDER BY name",
-      ).all<{ id: string; name: string }>();
-      summary += `<nav aria-label="Furniture collections"><ul>${collections.results.map((c) => `<li><a href="${escape(categoryURL(c))}">${escape(c.name)}</a></li>`).join("")}</ul></nav>`;
+      const collections = await publicCategories(c.env);
+      summary += `<nav aria-label="Furniture collections"><ul>${collections.map((c) => `<li><a href="${escape(categoryURL(c))}">${escape(c.name)}</a></li>`).join("")}</ul></nav>`;
     }
     html = html.replace(
       '<div id="root"></div>',

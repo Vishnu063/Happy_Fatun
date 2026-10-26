@@ -14,6 +14,18 @@ export default function FurnitureImage(
       <small>Request design details with your quotation.</small>
     </div>
   ) : (
-    <img {...props} onError={() => setFailed(true)} />
+    <img
+      {...props}
+      srcSet={
+        props.srcSet ||
+        (props.src?.startsWith("/assets/pilot/") &&
+        props.src.endsWith("-studio.webp")
+          ? `${props.src.replace("-studio.webp", "-card.webp")} 480w, ${props.src} 1200w`
+          : undefined)
+      }
+      sizes={props.sizes || "(max-width: 700px) 100vw, 60vw"}
+      decoding={props.decoding || "async"}
+      onError={() => setFailed(true)}
+    />
   );
 }

@@ -22,6 +22,9 @@ jobs:
       - run: npm run deploy:check
       - run: npm run preview:check
       - run: npm run build
+      - run: npm run build:backend
+      - run: npm run test:postgres
+      - run: npm run test:s3
       - run: node scripts/deploy.mjs --preview --dry-run
         env:
           WRANGLER_SEND_METRICS: "false"

@@ -1,5 +1,9 @@
 # Verification record
 
+## AWS migration preparation — 3 November 2026 UTC
+
+Current evidence for `feat/aws-kubernetes-fullstack` is in [the AWS validation report](docs/aws/VALIDATION.md). It distinguishes real local PostgreSQL/container tests, S3 emulation, schema/static checks and untested external systems. Cloudflare results below are historical baseline records. No push/deployment or live data migration was performed; existing PR #2 checks do not validate this local branch.
+
 ## Current manual deployment preparation — 26 October 2026 UTC
 
 The latest [owner comment](https://github.com/Vishnu063/Happy_Fatun/pull/2#issuecomment-6406661550) and direct instruction request a secure manual workflow, **not deployment**. A workflow_dispatch-only file now verifies an exact reviewed event SHA on `feat/furniture-platform`, validates protected-environment reviewers without Cloudflare credentials, runs existing checks, and leaves publishing to a separate environment-gated job. Config injection and final wrapper checks reject absent/zero/malformed/drifting account/D1 IDs. No push/PR publishing or remote-migration step exists. Required setup and limitations are in [MANUAL_CLOUDFLARE_DEPLOYMENT.md](docs/MANUAL_CLOUDFLARE_DEPLOYMENT.md).

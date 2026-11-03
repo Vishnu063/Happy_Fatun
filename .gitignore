@@ -7,3 +7,12 @@ dist/
 test-results/
 playwright-report/
 *.tsbuildinfo
+dist-server/
+coverage/
+infra/terraform/.terraform/
+*.tfstate*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+
+/node_modules

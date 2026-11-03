@@ -1,0 +1,18 @@
+# Preparation only. Replace reviewed commit and configure existing namespace/secrets before manual sync.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata: { name: happy-furn, namespace: argocd }
+spec:
+  project: happy-furn
+  source:
+    repoURL: https://github.com/Vishnu063/Happy_Fatun.git
+    targetRevision: REPLACE_WITH_APPROVED_40_CHARACTER_COMMIT
+    path: deploy/helm/happy-furn
+    helm:
+      valueFiles: [values/gitops-lab.yaml]
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: happy-furn-lab
+  # Manual sync, no automatic prune or namespace/resource creation.
+  syncPolicy:
+    syncOptions: [PrunePropagationPolicy=foreground, FailOnSharedResource=true]

@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata: { name: happy-furn, namespace: argocd }
+spec:
+  sourceRepos: [https://github.com/Vishnu063/Happy_Fatun.git]
+  destinations:
+    - { namespace: happy-furn-lab, server: "https://kubernetes.default.svc" }
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - { group: "", kind: Service }
+    - { group: "", kind: ConfigMap }
+    - { group: "", kind: PersistentVolumeClaim }
+    - { group: apps, kind: Deployment }
+    - { group: apps, kind: StatefulSet }
+    - { group: networking.k8s.io, kind: NetworkPolicy }
+
+    - { group: monitoring.coreos.com, kind: ServiceMonitor }

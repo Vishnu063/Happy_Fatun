@@ -1,0 +1,94 @@
+name: happy-furn-lab
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-happy-furn-postgres:lab}
+    build:
+      context: .
+      dockerfile: deploy/docker/postgres.Dockerfile
+    user: "70:70"
+    read_only: true
+    tmpfs: [/tmp, "/var/run/postgresql:uid=70,gid=70,mode=3775"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_DB: happy_furn
+      POSTGRES_USER: happy_furn
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set an isolated lab database password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U happy_furn -d happy_furn]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    cpus: 0.5
+    networks: [private]
+  migrations:
+    image: ${BACKEND_IMAGE:-happy-furn-backend:lab}
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    command: [node, dist-server/migrate.mjs, --apply]
+    environment:
+      DATABASE_URL: postgresql://happy_furn:${POSTGRES_PASSWORD}@postgres:5432/happy_furn
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+    mem_limit: 256m
+    restart: "no"
+  backend:
+    image: ${BACKEND_IMAGE:-happy-furn-backend:lab}
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    environment:
+      DATABASE_URL: postgresql://happy_furn:${POSTGRES_PASSWORD}@postgres:5432/happy_furn
+      ENVIRONMENT: development
+      PUBLIC_ORIGIN: http://127.0.0.1:${FRONTEND_PORT:-8081}
+      PREVIEW_MODE: "true"
+      EMAIL_MODE: disabled
+      OWNER_PASSWORD_HASH: ${OWNER_PASSWORD_HASH:?Generate a private local owner hash}
+      SESSION_SECRET: ${SESSION_SECRET:?Generate a random local session secret}
+      MEDIA_DRIVER: filesystem
+      MEDIA_ROOT: /data/media
+      # Dedicated isolated bridge subnet, not a trust-all forwarded-header policy.
+      TRUSTED_PROXY_CIDRS: 172.30.71.0/24
+    volumes: [media-data:/data/media]
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 1
+    networks: [private]
+  frontend:
+    image: ${FRONTEND_IMAGE:-happy-furn-frontend:lab}
+    build:
+      context: .
+      dockerfile: deploy/docker/frontend.Dockerfile
+    ports: ["127.0.0.1:${FRONTEND_PORT:-8081}:8080"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.5
+    networks: [private, edge]
+volumes:
+  postgres-data:
+  media-data:
+networks:
+  edge: {}
+  private:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.30.71.0/24

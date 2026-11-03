@@ -1,0 +1,6 @@
+apiVersion: v2
+name: happy-furn
+description: Aaranya Living Node/PostgreSQL lab and reviewed production configuration
+version: 0.1.0
+appVersion: "1.0.0"
+type: application

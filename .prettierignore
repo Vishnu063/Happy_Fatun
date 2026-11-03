@@ -6,3 +6,6 @@ public/assets
 migrations
 test-results
 playwright-report
+dist-server
+infra/terraform/.terraform
+deploy/helm/happy-furn/templates

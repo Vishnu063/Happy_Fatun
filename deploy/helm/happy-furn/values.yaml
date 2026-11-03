@@ -1,0 +1,55 @@
+# One release per namespace. No LoadBalancer, ingress, hostPort or cloud resource.
+publicOrigin: http://127.0.0.1:8090
+environment: development
+databaseSSL: false
+existingSecret: happy-furn-secrets
+frontend:
+  image:
+    {
+      repository: happy-furn-frontend,
+      tag: replace-reviewed-sha,
+      pullPolicy: IfNotPresent,
+    }
+  replicas: 1
+  resources:
+    {
+      requests: { cpu: 50m, memory: 32Mi },
+      limits: { cpu: 250m, memory: 128Mi },
+    }
+backend:
+  image:
+    {
+      repository: happy-furn-backend,
+      tag: replace-reviewed-sha,
+      pullPolicy: IfNotPresent,
+    }
+  replicas: 1
+  trustedProxyCIDRs: ""
+  resources:
+    {
+      requests: { cpu: 100m, memory: 128Mi },
+      limits: { cpu: "1", memory: 512Mi },
+    }
+media:
+  driver: filesystem
+  size: 2Gi
+  storageClass: ""
+  bucket: ""
+  region: ap-south-1
+  endpoint: ""
+postgres:
+  enabled: true
+  image: happy-furn-postgres:replace-reviewed-sha
+  size: 5Gi
+  storageClass: ""
+  resources:
+    {
+      requests: { cpu: 100m, memory: 128Mi },
+      limits: { cpu: 500m, memory: 512Mi },
+    }
+networkPolicy:
+  enabled: true
+  externalEgressCIDRs: []
+monitoring:
+  serviceMonitor: false
+  labels: {}

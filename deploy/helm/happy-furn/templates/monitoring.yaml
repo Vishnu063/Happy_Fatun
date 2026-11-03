@@ -1,0 +1,10 @@
+{{ if .Values.monitoring.serviceMonitor }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: happy-furn
+  labels: {{ toYaml .Values.monitoring.labels | nindent 4 }}
+spec:
+  selector: { matchLabels: { app: backend } }
+  endpoints: [{ port: http, path: /metrics, interval: 30s }]
+{{ end }}

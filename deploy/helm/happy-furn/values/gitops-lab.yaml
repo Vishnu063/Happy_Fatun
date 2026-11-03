@@ -1,0 +1,16 @@
+# Only promote images after registry scan, review, and approved Git commit.
+frontend:
+  image:
+    {
+      repository: replace-registry/happy-furn-frontend,
+      tag: replace-reviewed-sha,
+    }
+backend:
+  image:
+    {
+      repository: replace-registry/happy-furn-backend,
+      tag: replace-reviewed-sha,
+    }
+
+postgres:
+  image: replace-registry/happy-furn-postgres:replace-reviewed-sha

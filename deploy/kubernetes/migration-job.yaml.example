@@ -1,0 +1,21 @@
+# One-off only AFTER private backup/restore review and explicit schema-change approval.
+apiVersion: batch/v1
+kind: Job
+metadata: { name: happy-furn-migrate-reviewed-sha, namespace: happy-furn-lab }
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata: { labels: { app: backend } }
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 1000, runAsGroup: 1000, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: migrations
+          image: happy-furn-backend:replace-reviewed-sha
+          command: [node, dist-server/migrate.mjs, --apply]
+          envFrom: [{ secretRef: { name: happy-furn-secrets } }]
+          env: [{ name: ALLOW_REMOTE_MIGRATIONS, value: 'true' }]
+          resources: { requests: { cpu: 100m, memory: 64Mi }, limits: { cpu: 500m, memory: 256Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }

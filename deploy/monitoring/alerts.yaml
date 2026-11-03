@@ -1,0 +1,34 @@
+groups:
+  - name: happy-furn
+    rules:
+      - alert: HappyFurnUnavailable
+        expr: up{job="happy-furn"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: Backend scrape target is unavailable }
+      - alert: HappyFurnDatabaseUnready
+        expr: happy_furn_readiness == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations: { summary: Database schema or connection is unavailable }
+      - alert: HappyFurnServerErrors
+        expr: sum(rate(happy_furn_http_request_duration_seconds_count{status=~"5.."}[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: Backend 5xx responses require investigation }
+      - alert: HappyFurnPodRestarting
+        expr: increase(kube_pod_container_status_restarts_total{namespace="happy-furn-lab"}[10m]) > 3
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: Application container repeatedly restarts }
+      - alert: HappyFurnMemoryPressure
+        expr: sum by (pod) (container_memory_working_set_bytes{namespace="happy-furn-lab",container!=""}) / sum by (pod) (kube_pod_container_resource_limits{namespace="happy-furn-lab",resource="memory"}) > 0.85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          { summary: Pod memory usage exceeds 85 percent of its limit }
+      - alert: HappyFurnCPUThrottling
+        expr: sum by (pod) (rate(container_cpu_cfs_throttled_periods_total{namespace="happy-furn-lab"}[5m])) / sum by (pod) (rate(container_cpu_cfs_periods_total{namespace="happy-furn-lab"}[5m])) > 0.25
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: Pod CPU throttling exceeds 25 percent }

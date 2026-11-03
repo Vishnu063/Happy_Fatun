@@ -1,0 +1,85 @@
+{
+  "verified_at_utc": "2026-11-03",
+  "branch": "feat/aws-kubernetes-fullstack",
+  "baseline_commit": "f45a40e3ca636fc0f1493cf03e55fc91b1d694bb",
+  "scanner": "Trivy 0.67.2",
+  "policy": {
+    "severity": ["HIGH", "CRITICAL"],
+    "exit_code": 1,
+    "ignore_unfixed": false,
+    "suppressions": false
+  },
+  "database": {
+    "Version": 2,
+    "NextUpdate": "2026-11-04T13:13:42.304243562Z",
+    "UpdatedAt": "2026-11-03T13:13:42.304243913Z",
+    "DownloadedAt": "2026-11-03T16:31:28.467904677Z"
+  },
+  "source_checks_bundle": "ghcr.io/aquasecurity/trivy-checks:1",
+  "reports": {
+    "source": {
+      "report_sha256": "352f2bff246af062ddc9965ca67994bc1f306356254690943e92a636db5e30de",
+      "findings": {
+        "Vulnerabilities": 0,
+        "Misconfigurations": 0,
+        "Secrets": 0
+      },
+      "result": "PASS",
+      "scanners": ["vuln", "misconfig", "secret"]
+    },
+    "backend": {
+      "report_sha256": "dd089f0093527f4a00f9293c62245da917a7f043c30e1f71c37c0fd39b9b35cc",
+      "findings": {
+        "Vulnerabilities": 0,
+        "Misconfigurations": null,
+        "Secrets": null
+      },
+      "result": "PASS",
+      "scanners": ["vuln"]
+    },
+    "frontend": {
+      "report_sha256": "415ee3c9a4807a4cdd2618c36b9d0637d9cc4b7df07aed97bfa950e58bcd09a2",
+      "findings": {
+        "Vulnerabilities": 0,
+        "Misconfigurations": null,
+        "Secrets": null
+      },
+      "result": "PASS",
+      "scanners": ["vuln"]
+    },
+    "postgres": {
+      "report_sha256": "34a70093fb9e72e54a148e41a38d1743a63552de751cd1c6f5dc077bbd297618",
+      "findings": {
+        "Vulnerabilities": 0,
+        "Misconfigurations": null,
+        "Secrets": null
+      },
+      "result": "PASS",
+      "scanners": ["vuln"]
+    }
+  },
+  "images": {
+    "backend": {
+      "local_image_id": "sha256:48be004fb9d87fb9b5d8860eea9ef426da33cf1c23f70f2fb44b18496d71433b",
+      "user": "node",
+      "size_bytes": 192815693
+    },
+    "frontend": {
+      "local_image_id": "sha256:da4fd35d23587d9be38efce39d62d35d9045d8c5b6c25a34b8fca094e1e3935d",
+      "user": "101",
+      "size_bytes": 19476411
+    },
+    "postgres": {
+      "local_image_id": "sha256:b93044d46c8bb5e86a10711e6c8c5278a5836be8eebadfc180e8e433810940b0",
+      "user": "70:70",
+      "size_bytes": 297179006
+    }
+  },
+  "limitations": [
+    "Point-in-time HIGH/CRITICAL policy only; lower severities are not represented.",
+    "Alpine 3.24 is not in the scanner EOL list; lifecycle support not established.",
+    "Local app images were not published or deployed.",
+    "Source snapshot includes both dependency locks and IaC, excludes private/generated files.",
+    "Full report archives are temporary workspace evidence, not committed."
+  ]
+}

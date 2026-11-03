@@ -1,0 +1,25 @@
+.git
+node_modules
+dist
+dist-server
+.wrangler
+.dev.vars
+.env*
+*.tsbuildinfo
+test-results
+playwright-report
+coverage
+*.log
+attachments
+**/terraform.tfstate*
+**/.terraform
+**/*.tfvars
+
+# Documentation, delivery metadata and Terraform are not application build inputs.
+docs
+README.md
+VALIDATION.md
+Jenkinsfile
+compose.yaml
+.github
+infra

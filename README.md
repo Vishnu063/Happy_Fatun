@@ -1,5 +1,9 @@
 # Aaranya Living · Where Nature Meets Craftsmanship.
 
+## AWS migration branch — local validation only
+
+The additive Node 24/PostgreSQL/Docker/Kubernetes work is isolated on `feat/aws-kubernetes-fullstack`; the existing Cloudflare application remains available. See the [architecture, configuration and deployment/rollback runbook](docs/aws/README.md), [migration compatibility report](docs/aws/MIGRATION_COMPATIBILITY.md), [verified results and blockers](docs/aws/VALIDATION.md), and [changed files](docs/aws/FILES.md). No GitHub push, cloud deployment, live data migration or production credential configuration was performed. Production readiness is not established. The older sections below describe the furniture/Cloudflare baseline.
+
 Working brand approved in Issue #1; repository slug remains `Happy_Fatun`. No trademark registration or domain ownership is claimed.
 
 **Requirements audit:** [Full matrix](docs/FINAL_REQUIREMENTS_AUDIT.md). The current five-category pilot uses image galleries; matched-frame 360° is **DEFERRED** by owner instruction, and real model upload/loader is **NOT IMPLEMENTED**. Real contacts/credentials and live D1/R2/email verification remain pending. This is a candidate for owner review, not an unconditional completion or public-launch claim.

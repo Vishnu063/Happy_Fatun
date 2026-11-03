@@ -1,0 +1,13 @@
+# Review all endpoints, credentials, image tags, proxy and egress CIDRs before deployment.
+environment: production
+databaseSSL: true
+publicOrigin: https://replace-approved-domain.example.invalid
+postgres:
+  enabled: false
+backend:
+  replicas: 2
+media:
+  driver: s3
+  bucket: replace-approved-private-bucket
+monitoring:
+  serviceMonitor: false

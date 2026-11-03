@@ -1,0 +1,7 @@
+# Preparation only. Any enabled AWS resources may incur costs; never apply without approval.
+enable_infrastructure = false
+create_media_bucket  = false
+assign_public_ip     = false
+ami_id               = ""
+admin_cidrs          = []
+app_cidrs            = []

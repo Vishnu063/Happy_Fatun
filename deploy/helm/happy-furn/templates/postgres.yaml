@@ -1,0 +1,65 @@
+{{ if .Values.postgres.enabled }}
+apiVersion: v1
+kind: Service
+metadata: { name: postgres }
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector: { app: postgres }
+  ports: [{ name: postgres, port: 5432, targetPort: postgres }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: postgres }
+spec:
+  serviceName: postgres
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy: { whenDeleted: Retain, whenScaled: Retain }
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image | quote }}
+          ports: [{ name: postgres, containerPort: 5432 }]
+          resources: {{ toYaml .Values.postgres.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          env:
+            - { name: POSTGRES_USER, value: happy_furn }
+            - { name: POSTGRES_DB, value: happy_furn }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ .Values.existingSecret }}, key: POSTGRES_PASSWORD } }
+          readinessProbe:
+            exec: { command: [pg_isready, -h, 127.0.0.1, -U, happy_furn, -d, happy_furn] }
+            initialDelaySeconds: 5
+          livenessProbe:
+            exec: { command: [pg_isready, -h, 127.0.0.1, -U, happy_furn, -d, happy_furn] }
+            initialDelaySeconds: 20
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: tmp, mountPath: /tmp }
+            - { name: run, mountPath: /var/run/postgresql }
+      volumes:
+        - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
+        - { name: run, emptyDir: { sizeLimit: 16Mi } }
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- if .Values.postgres.storageClass }}
+        storageClassName: {{ .Values.postgres.storageClass | quote }}
+        {{- end }}
+        resources: { requests: { storage: {{ .Values.postgres.size }} } }
+{{ end }}

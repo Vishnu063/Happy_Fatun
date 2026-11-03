@@ -79,6 +79,10 @@ const check = (condition, message) => {
 try {
   compose(["config", "--quiet"]);
   compose(["up", "-d", "--no-build", "--wait", "--wait-timeout", "120"]);
+  if (process.argv.includes("--browser")) {
+    const { testWebsiteBrowser } = await import("./test-website-browser.mjs");
+    await testWebsiteBrowser(origin, password);
+  }
   check(
     (await (await api("/api/catalog")).json()).products.length === 21,
     "Catalog contract failed",

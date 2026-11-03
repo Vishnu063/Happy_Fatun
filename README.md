@@ -1,5 +1,7 @@
 # Aaranya Living · Where Nature Meets Craftsmanship.
 
+**Website + database:** [Start the complete local storefront and private Master Control](docs/WEBSITE.md). Use `npm run website:up` after the one-time private setup; `npm run test:website` verifies desktop/mobile customer inquiries against PostgreSQL. This is not a public deployment.
+
 ## AWS migration branch — local validation only
 
 The additive Node 24/PostgreSQL/Docker/Kubernetes work is isolated on `feat/aws-kubernetes-fullstack`; the existing Cloudflare application remains available. See the [architecture, configuration and deployment/rollback runbook](docs/aws/README.md), [migration compatibility report](docs/aws/MIGRATION_COMPATIBILITY.md), [verified results and blockers](docs/aws/VALIDATION.md), and [changed files](docs/aws/FILES.md). No GitHub push, cloud deployment, live data migration or production credential configuration was performed. Production readiness is not established. The older sections below describe the furniture/Cloudflare baseline.

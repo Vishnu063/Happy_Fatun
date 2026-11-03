@@ -1,5 +1,9 @@
 # Verification record
 
+## Website + PostgreSQL browser verification — 3 November 2026 UTC
+
+`npm run test:website` passed on the final local frontend/backend/non-root PostgreSQL images: desktop and mobile Chromium each browsed/searched, customized furniture, saved an inquiry and found it after reload in the private owner dashboard; logout blocked admin access, with zero page runtime errors. The same isolated fixture passed existing quote retry/persistence, supplier privacy, actual PostgreSQL outage/readiness/recovery and forwarding-spoof throttle checks. Screenshots with synthetic data are under `test-results/website/`; no production customer data was used. The test cleans up only its disposable project. The persistent startup wrapper is documented separately in [WEBSITE.md](docs/WEBSITE.md); the browser test exercises Compose directly, not an unattended production deployment. Existing storefront and application business logic were reused. Publishing/live email/real inventory/extra GLB assets remain unverified or pending.
+
 ## AWS migration preparation — 3 November 2026 UTC
 
 Current evidence for `feat/aws-kubernetes-fullstack` is in [the AWS validation report](docs/aws/VALIDATION.md). It distinguishes real local PostgreSQL/container tests, S3 emulation, schema/static checks and untested external systems. Cloudflare results below are historical baseline records. No push/deployment or live data migration was performed; existing PR #2 checks do not validate this local branch.

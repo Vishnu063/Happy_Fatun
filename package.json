@@ -30,7 +30,11 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "test:compose": "node scripts/test-compose.mjs",
     "test:s3": "node scripts/test-s3.mjs",
-    "lab:env": "node scripts/init-lab-env.mjs"
+    "lab:env": "node scripts/init-lab-env.mjs",
+    "test:website": "node scripts/test-compose.mjs --browser",
+    "website:up": "node scripts/website.mjs up",
+    "website:status": "node scripts/website.mjs status",
+    "website:down": "node scripts/website.mjs down"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1161.0",

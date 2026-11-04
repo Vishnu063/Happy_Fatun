@@ -1,5 +1,11 @@
 # Verification record
 
+## Controlled-preview release controls — 4 November 2026 IST
+
+Updated preview source restrictions to the current AWS/fullstack candidate branch. Strengthened approval enforcement for reviewer shape, disabled admin bypass, selected-branch restrictions and exact-commit successful push CI; all three workflow guard positions are covered. **116 automated tests**, including **40 focused release-control cases**, **11 PostgreSQL cases**, **one S3-emulator case**, **ten storefront browser cases (48.0 s)** and **six no-R2 browser cases (32.0 s)** passed locally. A real isolated PostgreSQL backup restored to a separate disposable database matched all **14 public tables** by row count/content checksum. Fresh root/runtime dependency audits report zero vulnerabilities. Builds/actionlint passed; exact-candidate CI is checked separately after push and reported with its immutable SHA in the task delivery.
+
+Hosted checks remain blocked by workflow default-branch registration, actual provider bypass/branch restrictions, inaccessible ID/secret metadata and lack of an accessible approved isolated target/known-good hosted version. No hosted URL/revision, real D1 restore, live HTTPS/secret use or hosted rollback is claimed. See [current readiness, preserved prior audit and operator actions](docs/DEPLOYMENT_READINESS.md). No production deployment, secret/DNS/data/provider-setting edit or live customer/supplier test traffic occurred.
+
 ## 100 additional merchandise listings — 4 November 2026 IST
 
 Added ten demo entries in each of ten merchandise categories, including shoes and phones. Fresh SQLite/PostgreSQL totals are 129 retained products and 121 default-discovery entries; five furniture concepts remain featured. Migration 0011 is additive/duplicate-safe; no real inventory, prices or stock quantities are claimed. See [scope, compatibility, image provenance and owner requirements](docs/MERCHANDISE_CATALOG.md).

@@ -9,6 +9,7 @@ import {
   preparePreviewTarget,
   validateApprovalEnvironment,
   checkManualDeployment,
+  validateSuccessfulCI,
 } from "../shared/manual-deployment";
 const config = ts.parseConfigFileTextToJson(
   "wrangler.preview.jsonc",
@@ -20,15 +21,41 @@ const account = "a".repeat(32),
 const context = {
   event: "workflow_dispatch",
   repository: "Vishnu063/Happy_Fatun",
-  ref: "refs/heads/feat/furniture-platform",
+  ref: "refs/heads/feat/aws-kubernetes-fullstack",
   sha,
   reviewed: sha,
 };
 const repository = { private: false, full_name: context.repository };
 const environment = {
   name: "cloudflare-preview",
+  can_admins_bypass: false,
+  deployment_branch_policy: {
+    protected_branches: false,
+    custom_branch_policies: true,
+  },
   protection_rules: [
-    { type: "required_reviewers", reviewers: [{ reviewer: { id: 1 } }] },
+    {
+      type: "required_reviewers",
+      prevent_self_review: false,
+      reviewers: [{ type: "User", reviewer: { id: 1 } }],
+    },
+  ],
+};
+const branchPolicy = {
+  total_count: 1,
+  branch_policies: [{ name: "feat/aws-kubernetes-fullstack", type: "branch" }],
+};
+const successfulCI = {
+  workflow_runs: [
+    {
+      head_sha: sha,
+      head_branch: "feat/aws-kubernetes-fullstack",
+      event: "push",
+      status: "completed",
+      conclusion: "success",
+      path: ".github/workflows/ci.yml",
+      repository,
+    },
   ],
 };
 describe("manual no-R2 deployment safety", () => {
@@ -39,7 +66,8 @@ describe("manual no-R2 deployment safety", () => {
       { event: "pull_request" },
       { repository: "fork/Happy_Fatun" },
       { ref: "refs/heads/main" },
-      { ref: "refs/tags/feat/furniture-platform" },
+      { ref: "refs/heads/feat/furniture-platform" },
+      { ref: "refs/tags/feat/aws-kubernetes-fullstack" },
       { sha: "c".repeat(40) },
       { reviewed: "HEAD" },
       { reviewed: "" },
@@ -89,7 +117,7 @@ describe("manual no-R2 deployment safety", () => {
   });
   it("blocks absent/unprotected reviewers and private visibility rather than silently losing the approval gate", () => {
     expect(() =>
-      validateApprovalEnvironment(repository, environment),
+      validateApprovalEnvironment(repository, environment, branchPolicy),
     ).not.toThrow();
     for (const invalid of [
       { name: "wrong", protection_rules: environment.protection_rules },
@@ -104,13 +132,14 @@ describe("manual no-R2 deployment safety", () => {
         protection_rules: [{ type: "required_reviewers", reviewers: [] }],
       },
     ])
-      expect(() => validateApprovalEnvironment(repository, invalid)).toThrow(
-        /reviewer/,
-      );
+      expect(() =>
+        validateApprovalEnvironment(repository, invalid, branchPolicy),
+      ).toThrow(/reviewer/);
     expect(() =>
       validateApprovalEnvironment(
         { ...repository, private: true },
         environment,
+        branchPolicy,
       ),
     ).toThrow(/Private Free/);
   });
@@ -139,19 +168,217 @@ describe("manual no-R2 deployment safety", () => {
     request
       .mockReset()
       .mockResolvedValueOnce(new Response(JSON.stringify(repository)))
-      .mockResolvedValueOnce(new Response(JSON.stringify(environment)));
+      .mockResolvedValueOnce(new Response(JSON.stringify(environment)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(branchPolicy)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(successfulCI)));
     await expect(checkManualDeployment(env, request)).resolves.toBeUndefined();
     expect(request.mock.calls.map(([url]) => url)).toEqual([
       "https://api.github.com/repos/Vishnu063/Happy_Fatun",
       "https://api.github.com/repos/Vishnu063/Happy_Fatun/environments/cloudflare-preview",
+      "https://api.github.com/repos/Vishnu063/Happy_Fatun/environments/cloudflare-preview/deployment-branch-policies?per_page=100",
+      `https://api.github.com/repos/Vishnu063/Happy_Fatun/actions/workflows/ci.yml/runs?head_sha=${sha}&event=push&per_page=100`,
     ]);
     expect(request.mock.calls[0][1]?.redirect).toBe("error");
     request
       .mockReset()
       .mockResolvedValueOnce(new Response(JSON.stringify(repository)))
-      .mockResolvedValueOnce(new Response("null"));
+      .mockResolvedValueOnce(new Response("null"))
+      .mockResolvedValueOnce(new Response(JSON.stringify(branchPolicy)));
     await expect(checkManualDeployment(env, request)).rejects.toThrow(
       /reviewer/,
+    );
+  });
+  it.each([true, undefined, null, "false", 0])(
+    "rejects enabled or malformed administrator bypass (%s)",
+    (bypass) => {
+      expect(() =>
+        validateApprovalEnvironment(
+          repository,
+          { ...environment, can_admins_bypass: bypass },
+          branchPolicy,
+        ),
+      ).toThrow(/bypass/);
+    },
+  );
+  it.each([
+    null,
+    undefined,
+    [],
+    {},
+    { protected_branches: true, custom_branch_policies: false },
+    { protected_branches: false, custom_branch_policies: "true" },
+  ])(
+    "rejects absent or malformed selected-branch configuration (%j)",
+    (policy) => {
+      expect(() =>
+        validateApprovalEnvironment(
+          repository,
+          { ...environment, deployment_branch_policy: policy },
+          branchPolicy,
+        ),
+      ).toThrow(/branch/);
+    },
+  );
+  it.each([
+    null,
+    undefined,
+    {},
+    [],
+    { total_count: 0, branch_policies: [] },
+    { total_count: 2, branch_policies: branchPolicy.branch_policies },
+    { total_count: 1, branch_policies: [] },
+    { total_count: 1, branch_policies: [null] },
+    { total_count: 1, branch_policies: [{ name: "*", type: "branch" }] },
+    {
+      total_count: 1,
+      branch_policies: [{ name: "feat/furniture-platform", type: "branch" }],
+    },
+    {
+      total_count: 1,
+      branch_policies: [{ name: "feat/aws-kubernetes-fullstack", type: "tag" }],
+    },
+    {
+      total_count: 1,
+      branch_policies: [{ name: "feat/aws-kubernetes-fullstack" }],
+    },
+    {
+      total_count: 2,
+      branch_policies: [
+        ...branchPolicy.branch_policies,
+        { name: "*", type: "tag" },
+      ],
+    },
+  ])(
+    "blocks missing, truncated, wildcard, extra or mismatched branch policies (%j)",
+    (policies) => {
+      expect(() =>
+        validateApprovalEnvironment(repository, environment, policies),
+      ).toThrow(/branch/);
+    },
+  );
+  it.each([
+    [null],
+    [1],
+    [{}],
+    [{ type: "User", reviewer: { id: "1" } }],
+    [{ type: "User", reviewer: { id: -1 } }],
+    [{ type: "Bot", reviewer: { id: 1 } }],
+  ])("rejects malformed reviewer entries (%j)", (reviewers) => {
+    expect(() =>
+      validateApprovalEnvironment(
+        repository,
+        {
+          ...environment,
+          protection_rules: [{ ...environment.protection_rules[0], reviewers }],
+        },
+        branchPolicy,
+      ),
+    ).toThrow(/reviewer/);
+  });
+  it("rejects malformed protection rules even alongside an otherwise valid reviewer rule", () => {
+    for (const malformed of [null, [], {}, 1, { type: 42 }])
+      expect(() =>
+        validateApprovalEnvironment(
+          repository,
+          {
+            ...environment,
+            protection_rules: [...environment.protection_rules, malformed],
+          },
+          branchPolicy,
+        ),
+      ).toThrow(/reviewer/);
+  });
+  it("accepts explicit self-review modes and valid teams without treating this metadata check as approval", () => {
+    validateApprovalEnvironment(repository, environment, branchPolicy);
+    validateApprovalEnvironment(
+      repository,
+      {
+        ...environment,
+        protection_rules: [
+          {
+            type: "required_reviewers",
+            prevent_self_review: true,
+            reviewers: [{ type: "Team", reviewer: { id: 2 } }],
+          },
+        ],
+      },
+      branchPolicy,
+    );
+    for (const rules of [
+      [{ ...environment.protection_rules[0], prevent_self_review: undefined }],
+      [...environment.protection_rules, ...environment.protection_rules],
+    ])
+      expect(() =>
+        validateApprovalEnvironment(
+          repository,
+          { ...environment, protection_rules: rules },
+          branchPolicy,
+        ),
+      ).toThrow(/reviewer/);
+  });
+  it("requires a successful push CI result for the exact candidate, branch, repository and workflow", () => {
+    expect(() => validateSuccessfulCI(successfulCI, sha)).not.toThrow();
+    for (const data of [
+      null,
+      {},
+      { workflow_runs: [] },
+      { workflow_runs: [null] },
+    ])
+      expect(() => validateSuccessfulCI(data, sha)).toThrow(/CI/);
+    for (const change of [
+      { head_sha: "c".repeat(40) },
+      { head_branch: "main" },
+      { event: "pull_request" },
+      { status: "in_progress" },
+      { conclusion: "failure" },
+      { conclusion: "skipped" },
+      { path: "other.yml" },
+      { repository: { full_name: "fork/Happy_Fatun" } },
+    ])
+      expect(() =>
+        validateSuccessfulCI(
+          { workflow_runs: [{ ...successfulCI.workflow_runs[0], ...change }] },
+          sha,
+        ),
+      ).toThrow(/CI/);
+  });
+  it("blocks policy/CI API denial and network/malformed responses; no fallback to old branch or prior CI", async () => {
+    const env = {
+      GITHUB_EVENT_NAME: context.event,
+      GITHUB_REPOSITORY: context.repository,
+      GITHUB_REF: context.ref,
+      GITHUB_SHA: sha,
+      REVIEWED_COMMIT: sha,
+      GH_TOKEN: "isolated-read-token",
+    };
+    for (const failedStage of [2, 3]) {
+      const data = [repository, environment, branchPolicy, successfulCI];
+      const request = vi.fn<typeof fetch>();
+      for (let i = 0; i <= failedStage; i++)
+        request.mockResolvedValueOnce(
+          i === failedStage
+            ? new Response("Do not log provider response", { status: 403 })
+            : new Response(JSON.stringify(data[i])),
+        );
+      await expect(checkManualDeployment(env, request)).rejects.toThrow(
+        /HTTP 403/,
+      );
+    }
+    const invalid = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(repository)))
+      .mockResolvedValueOnce(new Response(JSON.stringify(environment)))
+      .mockResolvedValueOnce(
+        new Response("not-json isolated-sensitive-response"),
+      );
+    await expect(checkManualDeployment(env, invalid)).rejects.toThrow(
+      "Cannot verify GitHub approval configuration: malformed JSON; deployment is blocked.",
+    );
+    const network = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new Error("isolated-sensitive-network-credential"));
+    await expect(checkManualDeployment(env, network)).rejects.toThrow(
+      /unavailable/,
     );
   });
   it("prepares a disposable checkout config without exposing a token or modifying the source target", () => {
@@ -230,6 +457,27 @@ describe("manual no-R2 deployment safety", () => {
     const verification = workflow.split("  deploy:")[0];
     expect(verification).not.toContain("secrets.");
     expect(workflow).toContain("needs: verify");
+    expect(
+      workflow.match(
+        /if: github.repository == 'Vishnu063\/Happy_Fatun' && github.ref == 'refs\/heads\/feat\/aws-kubernetes-fullstack'/g,
+      ),
+    ).toHaveLength(2);
+    expect(workflow).not.toContain("refs/heads/feat/furniture-platform");
+    expect(
+      workflow.match(/run: node scripts\/check-manual-deployment.mjs/g),
+    ).toHaveLength(2);
+    const publish = workflow.slice(
+      workflow.indexOf("      - name: Publish approved preview"),
+    );
+    expect(publish).toMatch(
+      /set -euo pipefail\s+node scripts\/check-manual-deployment.mjs/,
+    );
+    expect(
+      publish.indexOf("node scripts/check-manual-deployment.mjs"),
+    ).toBeLessThan(publish.indexOf("node scripts/deploy.mjs --preview"));
+    expect(publish).toContain("GH_TOKEN: ${{ github.token }}");
+    expect(publish).toContain("REVIEWED_COMMIT: ${{ inputs.reviewed_commit }}");
+    expect(publish).not.toMatch(/continue-on-error|always\(\)|if:|\|\| true/);
     expect(workflow).toContain("name: cloudflare-preview");
     expect(workflow.match(/ref: \$\{\{ github.sha \}\}/g)).toHaveLength(2);
     expect(workflow).not.toMatch(

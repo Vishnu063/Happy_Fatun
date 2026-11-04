@@ -8,6 +8,6 @@ if (
     throw new Error("No deployment guard overrides are supported.");
   await checkManualDeployment();
   console.log(
-    "Reviewed event commit and required environment reviewers verified. This check does not approve or deploy anything.",
+    "Exact commit CI, required reviewers, disabled admin bypass and the sole preview branch policy verified. This check does not approve or deploy anything.",
   );
 }

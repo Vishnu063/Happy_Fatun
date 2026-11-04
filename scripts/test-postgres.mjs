@@ -88,6 +88,72 @@ try {
     },
   );
   process.exitCode = test.status ?? 1;
+  if (test.status === 0) {
+    // Only this runner's synthetic local database/container: never a remote target.
+    const exec = (args) => {
+      const result = docker(["exec", name, ...args]);
+      if (result.status !== 0)
+        throw new Error(
+          `Isolated PostgreSQL backup/restore verification failed at ${args[0]}`,
+        );
+      return result.stdout.trim();
+    };
+    exec([
+      "pg_dump",
+      "-U",
+      "happy_test",
+      "-d",
+      "happy_test",
+      "--schema=public",
+      "--format=custom",
+      "--file=/tmp/isolated-preview.dump",
+    ]);
+    exec(["chmod", "0600", "/tmp/isolated-preview.dump"]);
+    exec(["createdb", "-U", "happy_test", "happy_restore_test"]);
+    exec([
+      "pg_restore",
+      "-U",
+      "happy_test",
+      "-d",
+      "happy_restore_test",
+      // Safe only because happy_restore_test was freshly created above in our owned fixture.
+      "--clean",
+      "--if-exists",
+      "--exit-on-error",
+      "--no-owner",
+      "--no-privileges",
+      "/tmp/isolated-preview.dump",
+    ]);
+    const query = (database, sql) =>
+      exec([
+        "psql",
+        "-X",
+        "-U",
+        "happy_test",
+        "-d",
+        database,
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-At",
+        "-c",
+        sql,
+      ]);
+    const tablesSQL =
+      "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename";
+    const tables = query("happy_test", tablesSQL);
+    if (!tables || tables !== query("happy_restore_test", tablesSQL))
+      throw new Error("Restored table inventory mismatch");
+    const list = tables.split("\n");
+    for (const table of list) {
+      const identifier = '"' + table.replaceAll('"', '""') + '"';
+      const sql = `SELECT count(*),md5(COALESCE(string_agg(row_to_json(t)::text,E'\\n' ORDER BY row_to_json(t)::text),'')) FROM public.${identifier} t`;
+      if (query("happy_test", sql) !== query("happy_restore_test", sql))
+        throw new Error("Restored row count/content checksum mismatch");
+    }
+    console.log(
+      `PASS: isolated pg_dump/pg_restore into a separate database; ${list.length} public tables matched by row count and content checksum. Synthetic data only.`,
+    );
+  }
 } finally {
   if (owned) docker(["rm", "-f", "-v", name]);
   rmSync(temp, { recursive: true, force: true });

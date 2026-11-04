@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       reviewed_commit:
-        description: Exact reviewed 40-character SHA at feat/furniture-platform HEAD
+        description: Exact reviewed 40-character SHA at feat/aws-kubernetes-fullstack HEAD
         required: true
         type: string
 permissions:
@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.repository == 'Vishnu063/Happy_Fatun' && github.ref == 'refs/heads/feat/furniture-platform'
+    if: github.repository == 'Vishnu063/Happy_Fatun' && github.ref == 'refs/heads/feat/aws-kubernetes-fullstack'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -48,7 +48,7 @@ jobs:
       - run: npm run test:e2e:preview -- --reporter=github,line
   deploy:
     needs: verify
-    if: github.repository == 'Vishnu063/Happy_Fatun' && github.ref == 'refs/heads/feat/furniture-platform'
+    if: github.repository == 'Vishnu063/Happy_Fatun' && github.ref == 'refs/heads/feat/aws-kubernetes-fullstack'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:
@@ -83,12 +83,16 @@ jobs:
           WRANGLER_SEND_METRICS: "false"
       - name: Publish approved preview only (no migrations or secret installation)
         run: |
+          set -euo pipefail
+          node scripts/check-manual-deployment.mjs
           if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
             echo "Cloudflare API token is missing; deployment blocked." >&2
             exit 1
           fi
           node scripts/deploy.mjs --preview
         env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEWED_COMMIT: ${{ inputs.reviewed_commit }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}

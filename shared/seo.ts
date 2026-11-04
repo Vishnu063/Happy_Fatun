@@ -1,3 +1,4 @@
+import { isMerchandise } from "./merchandise";
 import { guides, guideURL } from "./content";
 export const brand = "Aaranya Living";
 export const tagline = "Where Nature Meets Craftsmanship.";
@@ -20,7 +21,12 @@ export function pageMetadata(
     seo_title?: string;
     seo_description?: string;
   },
-  category?: { name: string; seo_title?: string; seo_description?: string },
+  category?: {
+    id?: string;
+    name: string;
+    seo_title?: string;
+    seo_description?: string;
+  },
   serviceArea?: string | null,
 ) {
   const local = serviceArea?.trim()
@@ -53,7 +59,9 @@ export function pageMetadata(
         `${category.name} design concepts${local} | ${brand}`,
       description:
         category.seo_description ||
-        `Explore ${category.name.toLowerCase()} design concepts, customize dimensions and request a quote. Feasibility, service area and final pricing require confirmation.`,
+        (isMerchandise(category.id || "")
+          ? `Browse ${category.name.toLowerCase()} demo listings and ask about options. Specifications, availability and final pricing require owner confirmation.`
+          : `Explore ${category.name.toLowerCase()} design concepts, customize dimensions and request a quote. Feasibility, service area and final pricing require confirmation.`),
     };
   if (path === "/contact")
     return {

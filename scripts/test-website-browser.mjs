@@ -21,7 +21,7 @@ export async function testWebsiteBrowser(origin, password) {
           errors = [];
         page.on("pageerror", (e) => errors.push(e.message));
         await page.goto("/");
-        await expect(page.locator("#collection .product-card")).toHaveCount(21);
+        await expect(page.locator("#collection .product-card")).toHaveCount(24);
         await expect(
           page.getByRole("heading", {
             name: "Furniture with soul. Made for your life.",
@@ -36,11 +36,78 @@ export async function testWebsiteBrowser(origin, password) {
           path: `test-results/website/${profile}-storefront.png`,
           fullPage: true,
         });
+        await page.getByRole("button", { name: "Phones", exact: true }).click();
+        await expect(page.locator("#collection .product-card")).toHaveCount(10);
+        await page
+          .getByRole("searchbox", { name: "Search products" })
+          .fill("Compact smartphone");
+        await expect(page.locator("#collection .product-card")).toHaveCount(1);
+        await page.locator("#collection .product-link").click();
+        await expect(
+          page.getByText("Confirm with the owner; demo listing only", {
+            exact: true,
+          }),
+        ).toBeVisible();
+        await expect(
+          page.getByLabel("Length (cm)", { exact: true }),
+        ).toHaveCount(0);
+        await page.screenshot({
+          path: `test-results/website/${profile}-phone.png`,
+          fullPage: true,
+        });
+        await page.goto("/collections/shoes/shoes");
+        await expect(page.locator("#collection .product-card")).toHaveCount(10);
+        await page
+          .getByRole("searchbox", { name: "Search products" })
+          .fill("Everyday sneakers");
+        await page.locator("#collection .product-link").click();
+        await page.getByText("Product options", { exact: true }).click();
+        await page
+          .getByRole("combobox", { name: "Variant / size", exact: true })
+          .selectOption("Size 8");
+        await page
+          .getByLabel("Full name", { exact: true })
+          .fill(`Merchandise ${profile} fixture`);
+        await page.getByLabel("Phone", { exact: true }).fill("9000000027");
+        await page.getByRole("checkbox").check();
+        await page
+          .getByRole("button", {
+            name: "Request a personal quotation",
+            exact: true,
+          })
+          .click();
+        await expect(
+          page.getByRole("heading", { name: "A beautiful beginning." }),
+        ).toBeVisible();
+        const merchandiseReference = await page
+          .locator(".reference strong")
+          .innerText();
+        await page.goto("/admin");
+        await page.getByLabel("Owner password").fill(password);
+        await page
+          .getByRole("button", { name: "Enter owner studio", exact: true })
+          .click();
+        await page
+          .getByRole("searchbox", { name: "Search inquiries" })
+          .fill(merchandiseReference);
+        const merchandiseInquiry = page
+          .locator(".inquiry")
+          .filter({ hasText: merchandiseReference });
+        await merchandiseInquiry.locator("summary").click();
+        await expect(merchandiseInquiry).toContainText("Size 8");
+        await expect(merchandiseInquiry).toContainText(
+          "Merchandise specifications to confirm",
+        );
+        await expect(merchandiseInquiry).not.toContainText("20 × 20 × 10 cm");
+        await page
+          .getByRole("button", { name: "Sign out", exact: true })
+          .click();
+        await page.goto("/");
         await page
           .getByRole("button", { name: "Dining tables", exact: true })
           .click();
         await page
-          .getByRole("searchbox", { name: "Search furniture" })
+          .getByRole("searchbox", { name: "Search products" })
           .fill("Gather");
         await expect(page.locator("#collection .product-card")).toHaveCount(1);
         await page.locator("#collection .product-link").click();

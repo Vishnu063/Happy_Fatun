@@ -20,7 +20,7 @@ import Contact from "./components/Contact";
 import Guides from "./components/Guides";
 import { guides, guideURL, categoryContent } from "../shared/content";
 import { captureSource, type Business } from "./lib/contact";
-import { priorityCategories, featuredProducts } from "../shared/catalog";
+import { catalogCategories, featuredProducts } from "../shared/catalog";
 const Admin = lazy(() => import("./components/Admin"));
 export default function App() {
   const [preview, setPreview] = useState(false);
@@ -99,7 +99,7 @@ export default function App() {
   const visible = products
     .filter(
       (p) =>
-        priorityCategories.some((id) => id === p.category_id) ||
+        catalogCategories.some((id) => id === p.category_id) ||
         route.startsWith("/collections/"),
     )
     .filter(
@@ -217,7 +217,7 @@ export default function App() {
           </span>
         </a>
         <nav aria-label="Main navigation" className={menu ? "nav open" : "nav"}>
-          <button onClick={() => browse()}>Explore furniture</button>
+          <button onClick={() => browse()}>Explore products</button>
           <a href="/about">Our approach</a>
           <a href="/guides">Buying guides</a>
           <a href="/contact">Contact</a>
@@ -336,7 +336,7 @@ export default function App() {
                     <em>Made for your life.</em>
                   </h1>
                   <p>
-                    Considered forms. Honest materials. Explore furniture
+                    Considered forms. Honest materials. Explore products
                     concepts and shape them around the way you live.
                   </p>
                   <form
@@ -354,12 +354,10 @@ export default function App() {
                     }}
                   >
                     <label>
-                      <span className="sr-only">
-                        Search all furniture designs
-                      </span>
+                      <span className="sr-only">Search all products</span>
                       <input
                         type="search"
-                        placeholder="Find your next furniture idea…"
+                        placeholder="Find furniture, phones, shoes and more…"
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                       />
@@ -455,16 +453,16 @@ export default function App() {
               <div
                 className="category-tabs"
                 role="group"
-                aria-label="Furniture categories"
+                aria-label="Product categories"
               >
                 <button
                   className={category === "all" ? "active" : ""}
                   onClick={() => browse()}
                 >
-                  All furniture
+                  All products
                 </button>
                 {categories
-                  .filter((c) => priorityCategories.some((id) => id === c.id))
+                  .filter((c) => catalogCategories.some((id) => id === c.id))
                   .map((c) => (
                     <button
                       key={c.id}
@@ -478,7 +476,7 @@ export default function App() {
               <div className="filters">
                 <label className="search">
                   <Search size={19} />
-                  <span className="sr-only">Search furniture</span>
+                  <span className="sr-only">Search products</span>
                   <input
                     id="catalog-search"
                     type="search"
@@ -529,7 +527,9 @@ export default function App() {
               </div>
               <div className="collection-meta">
                 <span>{visible.length} designs</span>
-                <span>Demo concepts · Manufacturer approval required</span>
+                <span>
+                  Demo listings · Availability and price require confirmation
+                </span>
               </div>
               {error ? (
                 <div role="alert" className="notice">

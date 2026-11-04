@@ -1,3 +1,4 @@
+import { isMerchandise } from "../../shared/merchandise";
 import { useEffect, useState } from "react";
 import {
   Plus,
@@ -856,25 +857,29 @@ function ProductEditor({
             </select>
           </label>
         </div>
-        <div className="three-fields">
-          {(["length", "width", "height"] as const).map((k) => (
-            <label key={k}>
-              {k[0].toUpperCase() + k.slice(1)} (cm)
-              <input
-                required
-                type="number"
-                min={k === "height" ? 10 : 20}
-                max={k === "length" ? 500 : 300}
-                step="0.1"
-                value={p[k]}
-                onChange={(e) => update(k, Number(e.target.value))}
-              />
-            </label>
-          ))}
-        </div>
+        {!isMerchandise(p.category_id) && (
+          <div className="three-fields">
+            {(["length", "width", "height"] as const).map((k) => (
+              <label key={k}>
+                {k[0].toUpperCase() + k.slice(1)} (cm)
+                <input
+                  required
+                  type="number"
+                  min={k === "height" ? 10 : 20}
+                  max={k === "length" ? 500 : 300}
+                  step="0.1"
+                  value={p[k]}
+                  onChange={(e) => update(k, Number(e.target.value))}
+                />
+              </label>
+            ))}
+          </div>
+        )}
         <div className="two-fields">
           <label>
-            Primary material
+            {isMerchandise(p.category_id)
+              ? "Primary option"
+              : "Primary material"}
             <input
               required
               maxLength={80}
@@ -892,7 +897,9 @@ function ProductEditor({
             />
           </label>
           <label>
-            Material options (comma separated)
+            {isMerchandise(p.category_id)
+              ? "Variants / sizes (comma separated)"
+              : "Material options (comma separated)"}
             <input
               required
               value={materials}
@@ -998,8 +1005,9 @@ function Inquiry({
           <section>
             <h4>Requested configuration</h4>
             <p>
-              {q.configuration.length} × {q.configuration.width} ×{" "}
-              {q.configuration.height} cm
+              {isMerchandise(String(q.product_snapshot.category_id))
+                ? "Merchandise specifications to confirm"
+                : `${q.configuration.length} × ${q.configuration.width} × ${q.configuration.height} cm`}
             </p>
             <p>
               {q.configuration.material} / {q.configuration.color}

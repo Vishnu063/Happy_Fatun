@@ -1,3 +1,4 @@
+import { isMerchandise } from "./merchandise";
 /** Original, versioned editorial content; no external CMS, claims or generated bulk pages. */
 export const guides = [
   {
@@ -51,6 +52,15 @@ export const guides = [
 ];
 export const guideURL = (g: { slug: string }) => `/guides/${g.slug}`;
 export function categoryContent(c: { id: string; name: string }) {
+  if (isMerchandise(c.id))
+    return {
+      intro: `Explore ${c.name.toLowerCase()} demo listings. These are inquiry examples, not verified inventory.`,
+      checks: [
+        "Confirm the exact variant, specifications and supplier with the owner.",
+        "Ask about availability, final price and delivery before ordering.",
+        "Placeholder illustrations do not show a manufactured or stocked product.",
+      ],
+    };
   const content: Record<string, { intro: string; checks: string[] }> = {
     sofas: {
       intro:

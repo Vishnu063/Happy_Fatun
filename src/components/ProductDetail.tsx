@@ -1,3 +1,4 @@
+import { isMerchandise } from "../../shared/merchandise";
 import { indianMobile } from "../../shared/inquiries";
 import { useRef, useState, useEffect } from "react";
 import {
@@ -23,6 +24,7 @@ export default function ProductDetail({
   related: Product[];
   business?: Business | null;
 }) {
+  const general = isMerchandise(p.category_id);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   useEffect(() => {
     if (location.hash === "#customize") {
@@ -249,18 +251,22 @@ export default function ProductDetail({
               : `Starting at ${money(p.price)}`}
           </p>
           <p className="muted">
-            Indicative only. Final cost follows manufacturer review.
+            {general
+              ? "Demo listing. Stock, specifications and final price require owner confirmation."
+              : "Indicative only. Final cost follows manufacturer review."}
           </p>
           <p>{p.description}</p>
           <dl className="specs">
             <div>
-              <dt>Dimensions</dt>
+              <dt>{general ? "Specifications" : "Dimensions"}</dt>
               <dd>
-                {p.length} × {p.width} × {p.height} cm (L × W × H)
+                {general
+                  ? "Confirm with the owner; demo listing only"
+                  : `${p.length} × ${p.width} × ${p.height} cm (L × W × H)`}
               </dd>
             </div>
             <div>
-              <dt>Material / finish</dt>
+              <dt>{general ? "Option / details" : "Material / finish"}</dt>
               <dd>
                 {p.material} / {p.finish}
               </dd>
@@ -270,7 +276,7 @@ export default function ProductDetail({
               <dd>Confirmed during review</dd>
             </div>
             <div>
-              <dt>Delivery & installation</dt>
+              <dt>{general ? "Delivery" : "Delivery & installation"}</dt>
               <dd>Scope, area and timing confirmed with your quotation</dd>
             </div>
           </dl>
@@ -310,39 +316,45 @@ export default function ProductDetail({
           <h2>A few details. A world of possibilities.</h2>
           <p>
             Share your name and mobile to request details or a quotation. The
-            shown configuration is prefilled; change it only if needed.
-            Measurements are in centimetres.
+            shown configuration is prefilled; change it only if needed.{" "}
+            {general
+              ? "Product specifications and availability need confirmation."
+              : "Measurements are in centimetres."}
           </p>
         </div>
         <div className="form-columns">
           <details className="inquiry-customization">
-            <summary>Optional furniture customization</summary>
+            <summary>
+              {general ? "Product options" : "Optional furniture customization"}
+            </summary>
             <fieldset>
               <legend>
                 <span>01</span> Make it yours
               </legend>
-              <div className="three-fields">
-                {(["length", "width", "height"] as const).map((k) => (
-                  <label key={k} htmlFor={k}>
-                    {k[0].toUpperCase() + k.slice(1)} (cm)
-                    <input
-                      id={k}
-                      type="number"
-                      required
-                      step="0.1"
-                      min={k === "height" ? 10 : 20}
-                      max={k === "length" ? 500 : 300}
-                      value={config[k]}
-                      onChange={(e) =>
-                        setConfig({ ...config, [k]: Number(e.target.value) })
-                      }
-                    />
-                  </label>
-                ))}
-              </div>
+              {!general && (
+                <div className="three-fields">
+                  {(["length", "width", "height"] as const).map((k) => (
+                    <label key={k} htmlFor={k}>
+                      {k[0].toUpperCase() + k.slice(1)} (cm)
+                      <input
+                        id={k}
+                        type="number"
+                        required
+                        step="0.1"
+                        min={k === "height" ? 10 : 20}
+                        max={k === "length" ? 500 : 300}
+                        value={config[k]}
+                        onChange={(e) =>
+                          setConfig({ ...config, [k]: Number(e.target.value) })
+                        }
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
               <div className="two-fields">
                 <label>
-                  Material
+                  {general ? "Variant / size" : "Material"}
                   <select
                     value={config.material}
                     onChange={(e) =>
@@ -436,7 +448,11 @@ export default function ProductDetail({
                 onChange={(e) =>
                   setConfig({ ...config, notes: e.target.value })
                 }
-                placeholder="Tell us about your room, finish preferences or a detail you love."
+                placeholder={
+                  general
+                    ? "Tell us the size, model or specifications you need."
+                    : "Tell us about your room, finish preferences or a detail you love."
+                }
               />
             </label>
             <label className="honeypot" aria-hidden="true">

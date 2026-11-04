@@ -8,7 +8,7 @@ test("no-R2 preview preserves quotes, owner security and safe catalog edits", as
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
-  await expect(page.locator("#collection .product-card")).toHaveCount(21);
+  await expect(page.locator("#collection .product-card")).toHaveCount(24);
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
     "content",
     "noindex, nofollow",

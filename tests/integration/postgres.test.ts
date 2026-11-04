@@ -65,7 +65,7 @@ const quote = () => ({
 });
 beforeAll(async () => {
   temp = await mkdtemp(join(tmpdir(), "happy-pg-media-"));
-  expect(await migrate(pool)).toBe(10);
+  expect(await migrate(pool)).toBe(11);
   env = {
     DB: db as unknown as D1Database,
     ASSETS: staticAssets("dist") as unknown as Fetcher,
@@ -80,12 +80,12 @@ afterAll(async () => {
   await pool.end();
   await rm(temp, { recursive: true, force: true });
 });
-it("applies all ten migrations repeatably, preserves seed types/history and serializes concurrent runners", async () => {
+it("applies all eleven migrations repeatably, preserves seed types/history and serializes concurrent runners", async () => {
   expect(await migrate(pool)).toBe(0);
   expect(await Promise.all([migrate(pool), migrate(pool)])).toEqual([0, 0]);
   expect(
     (await pool.query("SELECT COUNT(*)::int n FROM products")).rows[0].n,
-  ).toBe(29);
+  ).toBe(129);
   expect(
     (await pool.query("SELECT expires_at FROM owner_sessions")).rowCount,
   ).toBe(0);
@@ -94,7 +94,7 @@ it("applies all ten migrations repeatably, preserves seed types/history and seri
   await appendFile(join(dir, "0001_initial.sql"), "\n-- changed");
   await expect(migrate(pool, dir)).rejects.toThrow(/checksum/);
 });
-it("matches every seeded product/category/settings field against the original ten SQLite migrations", async () => {
+it("matches every seeded product/category/settings field against all eleven SQLite migrations", async () => {
   const source = new SQLiteFixture();
   try {
     for (const table of ["products", "categories", "settings"]) {
@@ -143,18 +143,18 @@ it("rolls back failed migration DDL and resumes from the last committed file wit
       (await isolated.query("SELECT COUNT(*)::int n FROM schema_migrations"))
         .rows[0].n,
     ).toBe(9);
-    expect(await migrate(isolated)).toBe(1);
+    expect(await migrate(isolated)).toBe(2);
     expect(
       (await isolated.query("SELECT COUNT(*)::int n FROM products")).rows[0].n,
-    ).toBe(29);
+    ).toBe(129);
   } finally {
     await isolated.end();
   }
 });
 it("serves compatible catalogs, legacy details, gallery JSON iteration and crawlable SEO without private fields", async () => {
   const data = await (await call("/api/catalog")).json<any>();
-  expect(data.products).toHaveLength(21);
-  expect(data.categories).toHaveLength(5);
+  expect(data.products).toHaveLength(121);
+  expect(data.categories).toHaveLength(15);
   expect(data.products[0].internal_cost).toBeUndefined();
   expect(
     (await call("/design/vana-pedestal-dining-table/pilot-dining")).status,

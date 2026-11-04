@@ -84,7 +84,7 @@ try {
     await testWebsiteBrowser(origin, password);
   }
   check(
-    (await (await api("/api/catalog")).json()).products.length === 21,
+    (await (await api("/api/catalog")).json()).products.length === 121,
     "Catalog contract failed",
   );
   check(

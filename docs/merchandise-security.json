@@ -1,0 +1,37 @@
+{
+  "date_ist": "2026-11-04",
+  "scope": "100 additional merchandise demo listings; local verification only",
+  "scanner": "Trivy 0.67.2",
+  "policy": {
+    "severity": ["HIGH", "CRITICAL"],
+    "ignore_unfixed": false,
+    "suppressions": false
+  },
+  "reports": {
+    "source": {
+      "sha256": "db4414da83e794465f61d80bc9f4594d812c0382e5021bcfd5369c11ea71022d",
+      "scanners": ["vuln", "misconfig", "secret"],
+      "high_critical_findings": {
+        "Vulnerabilities": 0,
+        "Misconfigurations": 0,
+        "Secrets": 0
+      }
+    },
+    "backend": {
+      "sha256": "7ce0365790734200d7b12bf6fe6d3923b38c8a55d2594aa0c81c756d1416ba50",
+      "scanners": ["vuln"],
+      "high_critical_findings": {
+        "Vulnerabilities": 0
+      },
+      "image_id": "sha256:14a34457b60cea3b08f2f241fda87721a96910a4a85c2c3ec674d81fe3ce90e6"
+    },
+    "frontend": {
+      "sha256": "a704ac8752cb42ca766940b59c1936c845e4a9df1c3ca65e0f56530f3d9854c3",
+      "scanners": ["vuln"],
+      "high_critical_findings": {
+        "Vulnerabilities": 0
+      },
+      "image_id": "sha256:9c073570126a2aece978430976078704fa8bce7d3356aa9f22c1e4ee8c44501e"
+    }
+  }
+}

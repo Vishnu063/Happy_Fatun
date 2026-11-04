@@ -66,20 +66,30 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("public catalog and private owner boundary", () => {
-  it("shows only five priority categories while retaining all legacy records", async () => {
+  it("shows furniture and merchandise categories while retaining all legacy records", async () => {
     const r = await request("/catalog");
     expect(r.status).toBe(200);
     const body = await r.json<any>();
-    expect(body.products).toHaveLength(21);
+    expect(body.products).toHaveLength(121);
     expect(body.categories.map((c: { name: string }) => c.name)).toEqual([
       "Dining tables",
       "Beds",
       "Wardrobes",
       "Chairs",
       "Coffee tables",
+      "Shoes",
+      "Phones",
+      "Clothing",
+      "Laptops",
+      "Audio",
+      "Bags",
+      "Watches",
+      "Kitchen essentials",
+      "Lighting",
+      "Sports accessories",
     ]);
-    expect(body.categories).toHaveLength(5);
-    expect(db.db.prepare("SELECT COUNT(*) n FROM products").get()?.n).toBe(29);
+    expect(body.categories).toHaveLength(15);
+    expect(db.db.prepare("SELECT COUNT(*) n FROM products").get()?.n).toBe(129);
     expect(
       body.products.some(
         (p: { category_id: string }) => p.category_id === "sofas",
@@ -755,7 +765,7 @@ describe("requirements audit catalog and owner controls", () => {
     const insert = db.db.prepare(
       "INSERT INTO products (id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,internal_cost) SELECT ?,?,'dining',description,material,finish,length,width,height,NULL,'concept',images,colors,materials,NULL,0 FROM products WHERE id='sofas-1'",
     );
-    for (let i = 0; i < 279; i++)
+    for (let i = 0; i < 179; i++)
       insert.run(`audit-fixture-${i}`, `Isolated catalog benchmark ${i}`);
     const body = await (await request("/catalog")).json<any>();
     expect(body.products).toHaveLength(300);

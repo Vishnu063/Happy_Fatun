@@ -4,7 +4,7 @@ This is the existing furniture website: React storefront → Hono API → persis
 
 ## Available website features
 
-- Responsive catalog, five priority categories, search/material filters and product pages.
+- Responsive catalog, five priority furniture categories plus ten merchandise categories, search/option filters and product pages.
 - Image galleries, dimensions/material/color customization and customer quotation requests.
 - Saved inquiry reference numbers and retry protection; customer inquiries remain private.
 - Owner-only Master Control for products, prices, image uploads, inquiries, follow-up, suppliers and cost comparison. Supplier contacts/costs/margins are never public catalog fields.

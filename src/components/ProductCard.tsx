@@ -1,3 +1,4 @@
+import { isMerchandise } from "../../shared/merchandise";
 import { productURL } from "../../shared/seo";
 import FurnitureImage from "./FurnitureImage";
 import { MoveUpRight } from "lucide-react";
@@ -11,7 +12,7 @@ export default function ProductCard({ product: p }: { product: Product }) {
             src={p.images[0]}
             alt={
               p.image_metadata?.[p.images[0]]?.alt ||
-              `${p.name} — furniture design`
+              `${p.name} — illustrative demo`
             }
             loading="lazy"
             sizes="(max-width:700px) 50vw, (max-width:1100px) 33vw, 25vw"
@@ -32,7 +33,9 @@ export default function ProductCard({ product: p }: { product: Product }) {
         <div className="card-info">
           <div>
             <p className="eyebrow">
-              {p.material} · {p.finish} finish
+              {isMerchandise(p.category_id)
+                ? "Demo listing · Details to confirm"
+                : `${p.material} · ${p.finish} finish`}
             </p>
             <h3>{p.name}</h3>
           </div>

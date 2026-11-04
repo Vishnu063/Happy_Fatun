@@ -1,3 +1,4 @@
+import { merchandiseCategories } from "./merchandise";
 /** Public pilot scope; legacy records remain in D1 and retain direct URLs. */
 export const priorityCategories = [
   "dining",
@@ -6,6 +7,10 @@ export const priorityCategories = [
   "chairs",
   "coffee-tables",
 ] as const;
+export const catalogCategories = [
+  ...priorityCategories,
+  ...merchandiseCategories.map((c) => c.id),
+];
 export const featuredProducts = [
   "pilot-dining",
   "pilot-bed",

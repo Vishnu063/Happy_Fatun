@@ -1,5 +1,5 @@
 import type { Env } from "./index";
-import { priorityCategories, categoryLabel } from "../shared/catalog";
+import { catalogCategories, categoryLabel } from "../shared/catalog";
 export const publicColumns =
   "id,name,category_id,description,material,finish,length,width,height,price,status,images,colors,materials,model,seo_title,seo_description";
 export function decode(row: Record<string, unknown>) {
@@ -18,12 +18,12 @@ export async function publicProducts(
     ? [selection.id]
     : selection.category
       ? [selection.category]
-      : [...priorityCategories];
+      : [...catalogCategories];
   const condition = selection.id
     ? "id=?"
     : selection.category
       ? "category_id=?"
-      : `category_id IN (${priorityCategories.map(() => "?").join(",")})`;
+      : `category_id IN (${catalogCategories.map(() => "?").join(",")})`;
   const [products, media] = await Promise.all([
     env.DB.prepare(
       `SELECT ${publicColumns} FROM products WHERE status!='archived' AND ${condition} ORDER BY name`,
@@ -61,10 +61,7 @@ export async function publicProducts(
 }
 export async function publicCategories(env: Env, legacyId?: string) {
   const ids = [
-    ...new Set<string>([
-      ...priorityCategories,
-      ...(legacyId ? [legacyId] : []),
-    ]),
+    ...new Set<string>([...catalogCategories, ...(legacyId ? [legacyId] : [])]),
   ];
   const rows = await env.DB.prepare(
     `SELECT id,name,seo_title,seo_description FROM categories WHERE id IN (${ids.map(() => "?").join(",")})`,

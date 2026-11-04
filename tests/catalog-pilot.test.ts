@@ -3,7 +3,7 @@ import { readFileSync, statSync } from "node:fs";
 import { Database } from "./helpers";
 import app, { type Env } from "../worker/index";
 import { imageType } from "../worker/media";
-import { featuredProducts, priorityCategories } from "../shared/catalog";
+import { featuredProducts, catalogCategories } from "../shared/catalog";
 describe("five-category original concept pilot", () => {
   it("serves five original single-view concepts with bounded optimized assets and no made-up inventory/price", async () => {
     const db = new Database();
@@ -19,7 +19,7 @@ describe("five-category original concept pilot", () => {
       );
       const data = await r.json<any>();
       expect(data.categories.map((c: { id: string }) => c.id)).toEqual([
-        ...priorityCategories,
+        ...catalogCategories,
       ]);
       for (const id of featuredProducts) {
         const p = data.products.find((p: { id: string }) => p.id === id);
@@ -41,7 +41,7 @@ describe("five-category original concept pilot", () => {
         ).toBeLessThan(20000);
       }
       expect(db.db.prepare("SELECT COUNT(*) n FROM products").get()?.n).toBe(
-        29,
+        129,
       );
     } finally {
       db.db.close();

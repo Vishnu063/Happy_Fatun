@@ -15,7 +15,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
       name: "Furniture with soul. Made for your life.",
     }),
   ).toBeVisible();
-  await expect(page.locator("#collection .product-card")).toHaveCount(21);
+  await expect(page.locator("#collection .product-card")).toHaveCount(24);
   await expect(
     page.getByRole("link", {
       name: /Aaranya Living.*CRAFTSMANSHIP/,
@@ -57,9 +57,7 @@ test("catalog, gallery, configuration, persisted quote and private owner flow", 
     .click();
   await expect(page).toHaveURL(/\/collections\/dining-tables\/dining$/);
   await expect(page.locator("#collection .product-card")).toHaveCount(5);
-  await page
-    .getByRole("searchbox", { name: "Search furniture" })
-    .fill("Gather");
+  await page.getByRole("searchbox", { name: "Search products" }).fill("Gather");
   await expect(page.locator("#collection .product-card")).toHaveCount(1);
   await page
     .getByRole("combobox", { name: "Material filter" })
@@ -561,7 +559,7 @@ test("catalog growth keeps initial rendering bounded and all designs discoverabl
     page.locator("#collection .product-card").nth(24).locator(".product-link"),
   ).toBeFocused();
   await page
-    .getByRole("searchbox", { name: "Search furniture", exact: true })
+    .getByRole("searchbox", { name: "Search products", exact: true })
     .fill("fixture 299");
   await expect(page.locator("#collection .product-card")).toHaveCount(1);
   await expect(page.locator("#collection .product-card")).toContainText(
@@ -569,7 +567,7 @@ test("catalog growth keeps initial rendering bounded and all designs discoverabl
   );
   await page
     .getByRole("searchbox", {
-      name: "Search all furniture designs",
+      name: "Search all products",
       exact: true,
     })
     .fill("fixture 298");
@@ -617,10 +615,8 @@ test("five original pilot galleries are responsive and never claim unmatched rot
   await expect(featured.locator(".product-card")).toHaveCount(5);
   await expect(featured).not.toContainText(/sofa/i);
   await expect(
-    page
-      .getByRole("group", { name: "Furniture categories" })
-      .getByRole("button"),
-  ).toHaveCount(6);
+    page.getByRole("group", { name: "Product categories" }).getByRole("button"),
+  ).toHaveCount(16);
   await mkdir("/tmp/aaranya-pilot-visuals", { recursive: true });
   await page.screenshot({
     path: `/tmp/aaranya-pilot-visuals/${info.project.name}-catalog.png`,

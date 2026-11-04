@@ -54,7 +54,7 @@ describe("public SEO documents and descriptive URLs", () => {
   });
   it("generates sitemap/robots from current public records and keeps owner pages out of indexes", async () => {
     const sitemap = await (await get("/sitemap.xml")).text();
-    expect(sitemap.match(/<loc>/g)).toHaveLength(45);
+    expect(sitemap.match(/<loc>/g)).toHaveLength(155);
     expect(sitemap).toContain("/design/aara-lounge-sofa/sofas-1");
     expect(sitemap).not.toContain("/admin");
     const robots = await (await get("/robots.txt")).text();

@@ -31,7 +31,7 @@ function fixture() {
 it("creates private salted configuration at the requested port, never logs the password, and preserves it on repeat", () => {
   const f = fixture();
   try {
-    const password = "isolated-start-owner-password",
+    const password = "  isolated-start-owner-password  ",
       first = f.run(["--port", "18081"], password);
     expect(first.status).toBe(0);
     expect(first.stdout + first.stderr).not.toContain(password);

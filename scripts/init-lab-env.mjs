@@ -11,7 +11,7 @@ if (
   throw new Error(
     "Choose a local port between 1024 and 65535; preserve ports 8080 and 8090.",
   );
-const password = readFileSync(0, "utf8").trim();
+const password = readFileSync(0, "utf8").replace(/\r?\n$/, "");
 const result = spawnSync(process.execPath, ["scripts/owner-hash.mjs"], {
   input: password,
   encoding: "utf8",

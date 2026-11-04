@@ -1,6 +1,12 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 const action = process.argv[2];
+const options = process.argv.slice(3);
+if (
+  options.some((option) => option !== "--no-build") ||
+  (options.length && action !== "up")
+)
+  throw new Error("Only website:up supports --no-build");
 if (!["up", "status", "down"].includes(action))
   throw new Error("Use website:up, website:status or website:down");
 if (!existsSync(".env.lab"))
@@ -56,20 +62,21 @@ const compose = (args) =>
   ]);
 compose(["config", "--quiet"]);
 if (action === "up") {
-  for (const part of ["backend", "frontend", "postgres"]) {
-    const ca = env.CODEX_PROXY_CERT
-      ? ["--secret", `id=proxy_ca,src=${env.CODEX_PROXY_CERT}`]
-      : [];
-    docker([
-      "build",
-      ...ca,
-      "-f",
-      `deploy/docker/${part}.Dockerfile`,
-      "-t",
-      `happy-furn-${part}:lab`,
-      ".",
-    ]);
-  }
+  if (!options.includes("--no-build"))
+    for (const part of ["backend", "frontend", "postgres"]) {
+      const ca = env.CODEX_PROXY_CERT
+        ? ["--secret", `id=proxy_ca,src=${env.CODEX_PROXY_CERT}`]
+        : [];
+      docker([
+        "build",
+        ...ca,
+        "-f",
+        `deploy/docker/${part}.Dockerfile`,
+        "-t",
+        `happy-furn-${part}:lab`,
+        ".",
+      ]);
+    }
   compose(["up", "-d", "--no-build", "--wait", "--wait-timeout", "120"]);
   const response = await fetch(`http://127.0.0.1:${port}/api/catalog`);
   if (!response.ok)

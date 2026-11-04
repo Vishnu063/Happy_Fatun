@@ -12,6 +12,8 @@ This is the existing furniture website: React storefront → Hono API → persis
 
 Concept images are illustrative, not verified inventory. The latest PR request for ten additional photorealistic designs and licensed matching interactive GLB assets is still pending on the furniture branch; this guide does not claim those exist. Preview email is disabled; inquiries are saved even without email. Checkout and real payment acceptance remain outside the current public website.
 
+For the shortest setup, use [the single-command starter](SIMPLE_START.md). The manual steps below remain supported.
+
 ## Start locally
 
 Requires Node 24+, Docker Engine/Compose and sufficient build disk space. Keep the existing checkout/branch. Do not point Docker at an existing EC2 server.
@@ -29,7 +31,7 @@ Requires Node 24+, Docker Engine/Compose and sufficient build disk space. Keep t
 
 3. Run `npm run website:up`.
 
-The command builds the three local images, applies the ten forward migrations through the existing one-shot service, waits for health and checks the database-backed catalog. It only uses the local Docker socket and its dedicated `happy-furn-website` Compose project. It creates a **new local database**; it never imports or changes existing live D1/customer data. Build failures stop startup; database migrations are not part of application startup.
+The command builds the three local images, applies the eleven forward migrations through the existing one-shot service, waits for health and checks the database-backed catalog. It only uses the local Docker socket and its dedicated `happy-furn-website` Compose project. It creates a **new local database**; it never imports or changes existing live D1/customer data. Build failures stop startup; database migrations are not part of application startup.
 
 Open **http://127.0.0.1:8081** and **http://127.0.0.1:8081/admin**. Sign in with the password you entered. Edit your business profile/contact details in the private settings; no business details are invented.
 

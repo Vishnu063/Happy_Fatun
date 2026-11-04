@@ -1,5 +1,7 @@
 # Aaranya Living · Where Nature Meets Craftsmanship.
 
+**Start simply:** [Run the website and PostgreSQL on your own machine](docs/SIMPLE_START.md) with `bash scripts/start-website.sh`. Choose your owner password locally, then manage products and contacts in the private dashboard. This starts a local preview; it does not provision or deploy AWS.
+
 **Catalog expansion:** [100 additional demo listings across ten categories](docs/MERCHANDISE_CATALOG.md), including shoes and phones. All existing furniture/customer data is retained. These are unconfirmed demo listings, not verified stock.
 
 **Website + database:** [Start the complete local storefront and private Master Control](docs/WEBSITE.md). Use `npm run website:up` after the one-time private setup; `npm run test:website` verifies desktop/mobile customer inquiries against PostgreSQL. This is not a public deployment.

@@ -65,7 +65,7 @@ const quote = () => ({
 });
 beforeAll(async () => {
   temp = await mkdtemp(join(tmpdir(), "happy-pg-media-"));
-  expect(await migrate(pool)).toBe(11);
+  expect(await migrate(pool)).toBe(12);
   env = {
     DB: db as unknown as D1Database,
     ASSETS: staticAssets("dist") as unknown as Fetcher,
@@ -80,7 +80,7 @@ afterAll(async () => {
   await pool.end();
   await rm(temp, { recursive: true, force: true });
 });
-it("applies all eleven migrations repeatably, preserves seed types/history and serializes concurrent runners", async () => {
+it("applies all twelve migrations repeatably, preserves seed types/history and serializes concurrent runners", async () => {
   expect(await migrate(pool)).toBe(0);
   expect(await Promise.all([migrate(pool), migrate(pool)])).toEqual([0, 0]);
   expect(
@@ -94,7 +94,7 @@ it("applies all eleven migrations repeatably, preserves seed types/history and s
   await appendFile(join(dir, "0001_initial.sql"), "\n-- changed");
   await expect(migrate(pool, dir)).rejects.toThrow(/checksum/);
 });
-it("matches every seeded product/category/settings field against all eleven SQLite migrations", async () => {
+it("matches every seeded product/category/settings field against all twelve SQLite migrations", async () => {
   const source = new SQLiteFixture();
   try {
     for (const table of ["products", "categories", "settings"]) {
@@ -143,7 +143,7 @@ it("rolls back failed migration DDL and resumes from the last committed file wit
       (await isolated.query("SELECT COUNT(*)::int n FROM schema_migrations"))
         .rows[0].n,
     ).toBe(9);
-    expect(await migrate(isolated)).toBe(2);
+    expect(await migrate(isolated)).toBe(3);
     expect(
       (await isolated.query("SELECT COUNT(*)::int n FROM products")).rows[0].n,
     ).toBe(129);

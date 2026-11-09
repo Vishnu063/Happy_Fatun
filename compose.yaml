@@ -54,7 +54,7 @@ services:
       MEDIA_DRIVER: filesystem
       MEDIA_ROOT: /data/media
       # Dedicated isolated bridge subnet, not a trust-all forwarded-header policy.
-      TRUSTED_PROXY_CIDRS: 172.30.71.0/24
+      TRUSTED_PROXY_CIDRS: ""
     volumes: [media-data:/data/media]
     depends_on:
       migrations:
@@ -89,6 +89,3 @@ networks:
   edge: {}
   private:
     internal: true
-    ipam:
-      config:
-        - subnet: 172.30.71.0/24

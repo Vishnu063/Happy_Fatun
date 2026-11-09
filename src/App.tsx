@@ -373,6 +373,17 @@ export default function App() {
                   <button className="btn" onClick={() => browse()}>
                     Explore the collection <ArrowUpRight size={19} />
                   </button>
+                  <p>
+                    <a
+                      href="https://stellata.xyz/app"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ textDecoration: "underline" }}
+                    >
+                      Explore the universe in 3D
+                      <span className="sr-only"> (opens in a new tab)</span>
+                    </a>
+                  </p>
                   <div className="hero-note">
                     <span className="line" /> YOUR SPACE. YOUR DIMENSIONS. YOUR
                     STORY.

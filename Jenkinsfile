@@ -16,7 +16,21 @@ pipeline {
     string(name: 'PUBLIC_HEALTH_URL', defaultValue: '', description: 'Approved HTTPS endpoint, without credentials')
   }
   stages {
-    stage('Checkout') { steps { checkout scm } }
+    stage('Checkout') {
+      steps {
+        script {
+          checkout scm
+          env.GIT_COMMIT = sh(
+            script: 'git rev-parse --verify HEAD',
+            returnStdout: true
+          ).trim()
+          if (!(env.GIT_COMMIT ==~ /^[a-f0-9]{40}$/)) {
+            error('Invalid Git checkout SHA')
+          }
+          echo "Verified checkout: ${env.GIT_COMMIT}"
+        }
+      }
+    }
     stage('Tool and target validation') {
       steps { script {
         sh 'node -e "if(Number(process.versions.node.split(\'.\')[0])<24)process.exit(1)"'

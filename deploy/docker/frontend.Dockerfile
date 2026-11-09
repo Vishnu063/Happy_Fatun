@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM node:24-bookworm-slim AS build
+USER root
+RUN apk upgrade --no-cache
 WORKDIR /app
 COPY package*.json ./
 RUN --mount=type=secret,id=proxy_ca if [ -s /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; npm ci
